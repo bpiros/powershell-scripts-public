@@ -17,7 +17,7 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 }
 
 $scriptDir = "$env:USERPROFILE\scripts\public"
-$SystemDrive = "C:"
+$SystemDrive = $env:SystemDrive
 
 if (-not (Test-Path $scriptDir)) { New-Item -ItemType Directory -Path $scriptDir | Out-Null }
 
