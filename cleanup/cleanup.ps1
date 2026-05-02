@@ -130,7 +130,7 @@ if (-not $NonInteractive) {
 $runSfc      = Ask-Optional "[Optional A] Run System File Checker (sfc /scannow)?  [slow — ~10-30 min]"
 $runDism     = Ask-Optional "[Optional B] Run DISM RestoreHealth + ComponentCleanup?  [slow — ~20-60 min]"
 $runChkdsk   = Ask-Optional "[Optional C] Run CHKDSK read-only disk health scan?"
-$removeWinOld = Ask-Optional "[Optional D] Remove Windows.old folder?  [IRREVERSIBLE — cannot roll back Windows version]"
+$removeWinOld = Ask-Optional "[Optional D] Show Windows.old removal guide? (Manual steps required for safe deletion)"
 $runDocker    = Ask-Optional "[Optional E] Prune unused Docker data? (Removes stopped containers and unused networks)"
 
 Write-Host ""
@@ -732,14 +732,24 @@ else {
 # WARNING: IRREVERSIBLE — cannot roll back Windows version after this.
 # ─────────────────────────────────────────────
 if ($removeWinOld) {
-    Run-Step "[Optional D] Removing Windows.old folder..." {
-        if (-not $DryRun) { Remove-Item "$SystemDrive\Windows.old" -Recurse -Force -ErrorAction SilentlyContinue }
-        else { Log "       [DRY RUN] Would remove Windows.old folder." "Yellow" }
+    Run-Step "[Optional D] Windows.old Removal Instructions" {
+        Log "       Windows.old requires elevated system permissions to remove safely." "Yellow"
+        Log "       Manual steps are recommended to avoid leaving corrupted fragments:" "Gray"
+        Log ""
+        Log "       Option 1 (Easiest):" "Cyan"
+        Log "         1. Open Start, type 'Disk Cleanup', and Run as Administrator." "Gray"
+        Log "         2. Select ($SystemDrive) and click 'OK'." "Gray"
+        Log "         3. Check 'Previous Windows installation(s)' and click 'OK'." "Gray"
+        Log ""
+        Log "       Option 2 (Command Line):" "Cyan"
+        Log "         Run the following in an Administrator PowerShell window:" "Gray"
+        Log "         RD /S /Q $SystemDrive\Windows.old" "White"
+        Log "         (Note: This may require taking ownership of the folder first)" "DarkGray"
     }
 }
 else {
     Log ""
-    Log "[Optional D] Windows.old removal — skipped by user." "DarkGray"
+    Log "[Optional D] Windows.old guide — skipped by user." "DarkGray"
 }
 
 # ─────────────────────────────────────────────
