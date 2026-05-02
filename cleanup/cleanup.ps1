@@ -146,7 +146,19 @@ Run-Step "[Pre] Creating System Restore Point..." {
         Set-ItemProperty -Path $rpFreqKey -Name $rpFreqName -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
 
         $restorePointDesc = "Pre-Cleanup $(Get-Date -Format 'yyyy-MM-dd HH:mm')"
-        Checkpoint-Computer -Description $restorePointDesc -RestorePointType MODIFY_SETTINGS -ErrorAction Stop
+        
+        if (Get-Command Checkpoint-Computer -ErrorAction SilentlyContinue) {
+            Checkpoint-Computer -Description $restorePointDesc -RestorePointType MODIFY_SETTINGS -ErrorAction Stop
+        }
+        else {
+            # PowerShell Core (pwsh) does not have Checkpoint-Computer. Fall back to Windows PowerShell 5.1.
+            Log "       Delegating restore point to Windows PowerShell 5.1..." "DarkGray"
+            $psArgs = "-NoProfile -Command `"Checkpoint-Computer -Description '$restorePointDesc' -RestorePointType MODIFY_SETTINGS -ErrorAction Stop`""
+            $proc = Start-Process powershell.exe -ArgumentList $psArgs -Wait -PassThru -WindowStyle Hidden
+            if ($proc.ExitCode -ne 0) {
+                throw "powershell.exe exited with code $($proc.ExitCode)."
+            }
+        }
 
         # Verify the point was actually created
         $newRP = Get-CimInstance -Namespace "root\default" -ClassName SystemRestore |
