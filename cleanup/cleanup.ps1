@@ -418,7 +418,7 @@ Run-Step "[5/12] Clearing Scoop cache..." {
 }
 
 # ─────────────────────────────────────────────
-# STEP 6: Clear developer tool caches (pip, npm, NuGet)
+# STEP 6: Clear developer tool caches (pip, npm, NuGet, Docker)
 # ─────────────────────────────────────────────
 Run-Step "[6/12] Clearing developer tool caches..." {
     if (Get-Command pip -ErrorAction SilentlyContinue) {
@@ -455,6 +455,17 @@ Run-Step "[6/12] Clearing developer tool caches..." {
                 Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
             }
             else { Log "       [DRY RUN] Would clean NuGet folder: $folder (30+ days)." "Yellow" }
+        }
+    }
+
+    # --- Docker ---
+    if (Get-Command docker -ErrorAction SilentlyContinue) {
+        Log "       [Docker] found — pruning unused system data..." "DarkGray"
+        if (-not $DryRun) {
+            docker system prune -f
+        }
+        else {
+            Log "       [DRY RUN] Would run: docker system prune -f" "Yellow"
         }
     }
 }
