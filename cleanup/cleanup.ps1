@@ -84,17 +84,10 @@ Run-Step "[Pre] Creating System Restore Point..." {
 }
 
 # ─────────────────────────────────────────────
-# STEP 1: Empty Recycle Bin
-# ─────────────────────────────────────────────
-Run-Step "[1/15] Emptying Recycle Bin..." {
-    Clear-RecycleBin -Force -ErrorAction SilentlyContinue
-}
-
-# ─────────────────────────────────────────────
-# STEP 2: Clear Temp folders (files older than 7 days) + empty folders
+# STEP 1: Clear Temp folders (files older than 7 days) + empty folders
 #         Prefetch: only .pf files not accessed in the last 14 days
 # ─────────────────────────────────────────────
-Run-Step "[2/15] Clearing Temp folders (files older than 7 days) and empty folders..." {
+Run-Step "[1/14] Clearing Temp folders (files older than 7 days) and empty folders..." {
 
     $totalFiles   = 0
     $totalFolders = 0
@@ -217,17 +210,17 @@ Run-Step "[2/15] Clearing Temp folders (files older than 7 days) and empty folde
         Log "         No .dmp files older than 7 days found." "DarkGray"
     }
 
-    # --- Step 2 summary ---
+    # --- Step summary ---
     $totalLabel = if ($totalBytes -ge 1GB) { "$([math]::Round($totalBytes/1GB,2)) GB" } else { "$([math]::Round($totalBytes/1MB,1)) MB" }
     Log "       Total: $totalFiles file(s) deleted ($totalLabel), $totalFolders empty folder(s) removed." "Green"
 }
 
 # ─────────────────────────────────────────────
-# STEP 3: Auto-configure and run Disk Cleanup (cleanmgr)
-# -Wait ensures cleanmgr finishes before Step 4 begins.
+# STEP 2: Auto-configure and run Disk Cleanup (cleanmgr)
+# -Wait ensures cleanmgr finishes before the next step begins.
 # StateFlags9901 is used to avoid collisions with other tools using profile 1.
 # ─────────────────────────────────────────────
-Run-Step "[3/15] Configuring and running Disk Cleanup (cleanmgr)..." {
+Run-Step "[2/14] Configuring and running Disk Cleanup (cleanmgr)..." {
     $volCaches  = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches'
     $categories = @(
         'Temporary Files',
@@ -249,12 +242,12 @@ Run-Step "[3/15] Configuring and running Disk Cleanup (cleanmgr)..." {
 }
 
 # ─────────────────────────────────────────────
-# STEP 4: Clear Windows Update download cache
+# STEP 3: Clear Windows Update download cache
 # Preserves the 'DataStore' folder to keep Windows Update history/metadata.
 # BITS and DoSvc are also stopped to prevent file-locking conflicts.
 # try/finally guarantees all three services restart even if deletion fails.
 # ─────────────────────────────────────────────
-Run-Step "[4/15] Clearing Windows Update download cache..." {
+Run-Step "[3/14] Clearing Windows Update download cache..." {
     Log "       Stopping Windows Update, BITS, and Delivery Optimization services..." "DarkGray"
     Stop-Service -Name wuauserv, BITS, DoSvc -Force -ErrorAction SilentlyContinue
     try {
@@ -266,16 +259,16 @@ Run-Step "[4/15] Clearing Windows Update download cache..." {
 }
 
 # ─────────────────────────────────────────────
-# STEP 5: Clear winget download cache
+# STEP 4: Clear winget download cache
 # ─────────────────────────────────────────────
-Run-Step "[5/15] Clearing winget download cache..." {
+Run-Step "[4/14] Clearing winget download cache..." {
     Remove-Item "$env:LOCALAPPDATA\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\LocalCache\Roaming\Microsoft\WinGet\Packages\*" -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 # ─────────────────────────────────────────────
-# STEP 6: Clear Scoop cache
+# STEP 5: Clear Scoop cache
 # ─────────────────────────────────────────────
-Run-Step "[6/15] Clearing Scoop cache..." {
+Run-Step "[5/14] Clearing Scoop cache..." {
     if (Get-Command scoop -ErrorAction SilentlyContinue) {
         scoop cache rm *
         Log "       Scoop cache cleared." "DarkGray"
@@ -285,9 +278,9 @@ Run-Step "[6/15] Clearing Scoop cache..." {
 }
 
 # ─────────────────────────────────────────────
-# STEP 7: Clear developer tool caches (pip, npm)
+# STEP 6: Clear developer tool caches (pip, npm)
 # ─────────────────────────────────────────────
-Run-Step "[7/15] Clearing developer tool caches..." {
+Run-Step "[6/14] Clearing developer tool caches..." {
     if (Get-Command pip -ErrorAction SilentlyContinue) {
         Log "       [pip] found — clearing cache..." "DarkGray"
         pip cache purge
@@ -304,20 +297,20 @@ Run-Step "[7/15] Clearing developer tool caches..." {
 }
 
 # ─────────────────────────────────────────────
-# STEP 8: SFC - System File Checker
+# STEP 7: SFC - System File Checker
 # ─────────────────────────────────────────────
-Run-Step "[8/15] Running System File Checker (sfc /scannow)..." {
+Run-Step "[7/14] Running System File Checker (sfc /scannow)..." {
     Log "       This may take several minutes..." "DarkGray"
     sfc /scannow
     if ($LASTEXITCODE -ne 0) { Log "       SFC exited with code $LASTEXITCODE — review the log." "Yellow" }
 }
 
 # ─────────────────────────────────────────────
-# STEP 9: DISM - Repair and Cleanup
+# STEP 8: DISM - Repair and Cleanup
 # /ResetBase removed — it is irreversible and too destructive for routine use.
 # Run it manually only if you need maximum space and your system is stable.
 # ─────────────────────────────────────────────
-Run-Step "[9/15] Running DISM RestoreHealth + ComponentCleanup..." {
+Run-Step "[8/14] Running DISM RestoreHealth + ComponentCleanup..." {
     Log "       This may take several minutes..." "DarkGray"
     dism /Online /Cleanup-Image /RestoreHealth
     if ($LASTEXITCODE -ne 0) { Log "       DISM RestoreHealth exited with code $LASTEXITCODE — review the log." "Yellow" }
@@ -326,11 +319,11 @@ Run-Step "[9/15] Running DISM RestoreHealth + ComponentCleanup..." {
 }
 
 # ─────────────────────────────────────────────
-# STEP 10: Clear selected low-value Windows Event Logs
+# STEP 9: Clear selected low-value Windows Event Logs
 # Only a targeted list is cleared — full log history is preserved for
 # troubleshooting crashes, security audits, and update failures.
 # ─────────────────────────────────────────────
-Run-Step "[10/15] Clearing selected low-value Windows Event Logs..." {
+Run-Step "[9/14] Clearing selected low-value Windows Event Logs..." {
     $logsToClear = @(
         "Microsoft-Windows-Diagnostics-Performance/Operational",
         "Microsoft-Windows-ResourceExhaustion-Detector/Operational",
@@ -346,28 +339,28 @@ Run-Step "[10/15] Clearing selected low-value Windows Event Logs..." {
 }
 
 # ─────────────────────────────────────────────
-# STEP 11: Clear DNS Cache
+# STEP 10: Clear DNS Cache
 # ─────────────────────────────────────────────
-Run-Step "[11/15] Flushing DNS cache..." {
+Run-Step "[10/14] Flushing DNS cache..." {
     Clear-DnsClientCache
 }
 
 # ─────────────────────────────────────────────
-# STEP 12: Clear Windows Store cache
+# STEP 11: Clear Windows Store cache
 # wsreset.exe spawns a child process and returns immediately, so -Wait
 # only catches the launcher exit. A Sleep buffer is used instead.
 # ─────────────────────────────────────────────
-Run-Step "[12/15] Clearing Windows Store cache (wsreset)..." {
+Run-Step "[11/14] Clearing Windows Store cache (wsreset)..." {
     Start-Process wsreset.exe
     Log "       Waiting 15 seconds for wsreset to complete..." "DarkGray"
     Start-Sleep -Seconds 15
 }
 
 # ─────────────────────────────────────────────
-# STEP 13: Flush thumbnail and font caches
+# STEP 12: Flush thumbnail and font caches
 # Uses ie4uinit.exe to refresh icon/thumb caches without killing Explorer.
 # ─────────────────────────────────────────────
-Run-Step "[13/15] Flushing thumbnail and font caches..." {
+Run-Step "[12/14] Flushing thumbnail and font caches..." {
     # Thumbnail/Icon cache (non-destructive refresh)
     Log "       Refreshing icon and thumbnail cache..." "DarkGray"
     if (Test-Path "$env:WinDir\System32\ie4uinit.exe") {
@@ -382,10 +375,10 @@ Run-Step "[13/15] Flushing thumbnail and font caches..." {
 }
 
 # ─────────────────────────────────────────────
-# STEP 14: Clear browser caches
+# STEP 13: Clear browser caches
 # Skips any browser that is currently running to avoid session corruption.
 # ─────────────────────────────────────────────
-Run-Step "[14/15] Clearing browser caches..." {
+Run-Step "[13/14] Clearing browser caches..." {
     $browsers = @{
         "Google Chrome"   = @(
             "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\Cache\*",
@@ -436,11 +429,11 @@ Run-Step "[14/15] Clearing browser caches..." {
 }
 
 # ─────────────────────────────────────────────
-# STEP 15: Clear Android Studio and Gradle caches
+# STEP 14: Clear Android Studio and Gradle caches
 # Only studio64/studio processes are killed — NOT generic java.exe,
 # which would terminate unrelated servers, games, or tools.
 # ─────────────────────────────────────────────
-Run-Step "[15/15] Clearing Android Studio caches..." {
+Run-Step "[14/14] Clearing Android Studio caches..." {
     Get-Process -Name "studio64", "studio" -ErrorAction SilentlyContinue |
         Stop-Process -Force -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 5
