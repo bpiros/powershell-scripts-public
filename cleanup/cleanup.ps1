@@ -252,15 +252,21 @@ Run-Step "[1/12] Clearing Temp folders (files older than 7 days) and empty folde
             Log "         No files older than 7 days found." "DarkGray"
         }
 
-        # Remove leftover empty folders
-        $emptyFolders = Get-ChildItem -Path $folder -Directory -Recurse -Force -ErrorAction SilentlyContinue |
-        Where-Object { (Get-ChildItem $_.FullName -Recurse -Force -ErrorAction SilentlyContinue).Count -eq 0 }
-
-        if ($emptyFolders) {
-            $emptyCount = ($emptyFolders | Measure-Object).Count
-            $totalFolders += $emptyCount
-            Log "         Removing $emptyCount empty folder(s)..." "DarkGray"
-            $emptyFolders | Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
+        # Remove leftover empty folders (bottom-up: deepest first so parents become empty in the same pass)
+        $allDirs = Get-ChildItem -Path $folder -Directory -Recurse -Force -ErrorAction SilentlyContinue
+        if ($allDirs) {
+            $allDirs |
+            Sort-Object { ($_.FullName -split '\\').Count } -Descending |
+            ForEach-Object {
+                # Cheap leaf check — no recursion needed since we process deepest first
+                if (([System.IO.Directory]::GetFileSystemEntries($_.FullName)).Count -eq 0) {
+                    Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
+                    $totalFolders++
+                }
+            }
+            if ($totalFolders -gt 0) {
+                Log "         Removed $totalFolders empty folder(s)." "DarkGray"
+            }
         }
     }
 
