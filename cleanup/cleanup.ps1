@@ -416,7 +416,7 @@ Run-Step "[5/12] Clearing Scoop cache..." {
 }
 
 # ─────────────────────────────────────────────
-# STEP 6: Clear developer tool caches (pip, npm)
+# STEP 6: Clear developer tool caches (pip, npm, NuGet)
 # ─────────────────────────────────────────────
 Run-Step "[6/12] Clearing developer tool caches..." {
     if (Get-Command pip -ErrorAction SilentlyContinue) {
@@ -435,6 +435,25 @@ Run-Step "[6/12] Clearing developer tool caches..." {
     }
     else {
         Log "       [npm] not found — skipping." "DarkGray"
+    }
+
+    # --- NuGet / .NET caches ---
+    $nugetFolders = @(
+        "$env:LOCALAPPDATA\NuGet\v3-cache",
+        "$env:USERPROFILE\.nuget\packages",
+        "$env:LOCALAPPDATA\Temp\NuGetScratch"
+    )
+    foreach ($folder in $nugetFolders) {
+        if (Test-Path $folder) {
+            Log "       [NuGet] found: $folder — cleaning (30+ days)..." "DarkGray"
+            if (-not $DryRun) {
+                $old30 = (Get-Date).AddDays(-30)
+                Get-ChildItem -Path $folder -Recurse -Force -ErrorAction SilentlyContinue |
+                Where-Object { $_.LastWriteTime -lt $old30 } |
+                Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+            }
+            else { Log "       [DRY RUN] Would clean NuGet folder: $folder (30+ days)." "Yellow" }
+        }
     }
 }
 
