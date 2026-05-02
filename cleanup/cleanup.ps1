@@ -324,10 +324,10 @@ Run-Step "[1/12] Clearing Temp folders (files older than 7 days) and empty folde
 
 # ─────────────────────────────────────────────
 # STEP 2: Auto-configure and run Disk Cleanup (cleanmgr)
-# StateFlags9901 is used to avoid collisions with other tools using profile 1.
-# cleanmgr is launched with PassThru so we can enforce a 5-minute timeout —
-# the /sagerun flag skips the drive-selection GUI, but a timeout guards against
-# unexpected hangs. cleanmgr is not present on Windows Server; the step is skipped.
+# A random profile number (8000-9999) is used to avoid collisions.
+# cleanmgr is launched with PassThru so we can monitor execution —
+# the /sagerun flag skips the drive-selection GUI.
+# cleanmgr is not present on Windows Server; the step is skipped.
 # ─────────────────────────────────────────────
 Run-Step "[2/12] Configuring and running Disk Cleanup (cleanmgr)..." {
     $cleanmgrPath = "$env:SystemRoot\System32\cleanmgr.exe"
@@ -336,6 +336,8 @@ Run-Step "[2/12] Configuring and running Disk Cleanup (cleanmgr)..." {
         return
     }
 
+    $sageProfile = Get-Random -Minimum 8000 -Maximum 9999
+    $flagName = "StateFlags$sageProfile"
     $volCaches = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches'
     $categories = @(
         'Temporary Files',
@@ -347,38 +349,52 @@ Run-Step "[2/12] Configuring and running Disk Cleanup (cleanmgr)..." {
         'System error memory dump files',
         'Downloaded Program Files'
     )
-    foreach ($cat in $categories) {
-        $path = Join-Path $volCaches $cat
-        if (Test-Path $path) {
-            if (-not $DryRun) { Set-ItemProperty -Path $path -Name 'StateFlags9901' -Value 2 -Type DWord -Force -ErrorAction SilentlyContinue }
+
+    try {
+        foreach ($cat in $categories) {
+            $path = Join-Path $volCaches $cat
+            if (Test-Path $path) {
+                if (-not $DryRun) { Set-ItemProperty -Path $path -Name $flagName -Value 2 -Type DWord -Force -ErrorAction SilentlyContinue }
+            }
+        }
+
+        if ($DryRun) {
+            Log "       [DRY RUN] Would launch cleanmgr /sagerun:$sageProfile." "Yellow"
+            return
+        }
+
+        Log "       Launching cleanmgr /sagerun:$sageProfile (Synchronous)..." "DarkGray"
+        $proc = Start-Process -FilePath $cleanmgrPath -ArgumentList "/sagerun:$sageProfile" -PassThru -ErrorAction Stop
+        $startTime = Get-Date
+        $spinner = @('|', '/', '-', '\')
+        $counter = 0
+
+        while (-not $proc.HasExited) {
+            $elapsed = (Get-Date) - $startTime
+            # Spinner only on console to avoid log bloat
+            Write-Host -NoNewline "`r       Still working... $($spinner[$counter % 4]) [$($elapsed.ToString('mm\:ss'))]   " -ForegroundColor DarkGray
+            $counter++
+            Start-Sleep -Milliseconds 500
+            
+            # Log a heartbeat to the file every 2 minutes
+            if ($counter % 240 -eq 0) { 
+                Add-Content -Path $logFile -Value "[$(Get-Date -Format 'HH:mm:ss')] cleanmgr still active ($($elapsed.ToString('mm\:ss')) elapsed)..."
+            }
+        }
+        Write-Host "" # Newline to clear the spinner line
+        Log "       cleanmgr completed (exit code: $($proc.ExitCode))." "DarkGray"
+    }
+    finally {
+        if (-not $DryRun) {
+            # Clean up the registry flags
+            foreach ($cat in $categories) {
+                $path = Join-Path $volCaches $cat
+                if (Test-Path $path) {
+                    Remove-ItemProperty -Path $path -Name $flagName -ErrorAction SilentlyContinue
+                }
+            }
         }
     }
-
-    if ($DryRun) {
-        Log "       [DRY RUN] Would launch cleanmgr /sagerun:9901." "Yellow"
-        return
-    }
-
-    Log "       Launching cleanmgr /sagerun:9901 (Synchronous)..." "DarkGray"
-    $proc = Start-Process -FilePath $cleanmgrPath -ArgumentList "/sagerun:9901" -PassThru -ErrorAction Stop
-    $startTime = Get-Date
-    $spinner = @('|', '/', '-', '\')
-    $counter = 0
-
-    while (-not $proc.HasExited) {
-        $elapsed = (Get-Date) - $startTime
-        # Spinner only on console to avoid log bloat
-        Write-Host -NoNewline "`r       Still working... $($spinner[$counter % 4]) [$($elapsed.ToString('mm\:ss'))]   " -ForegroundColor DarkGray
-        $counter++
-        Start-Sleep -Milliseconds 500
-        
-        # Log a heartbeat to the file every 2 minutes
-        if ($counter % 240 -eq 0) { 
-            Add-Content -Path $logFile -Value "[$(Get-Date -Format 'HH:mm:ss')] cleanmgr still active ($($elapsed.ToString('mm\:ss')) elapsed)..."
-        }
-    }
-    Write-Host "" # Newline to clear the spinner line
-    Log "       cleanmgr completed (exit code: $($proc.ExitCode))." "DarkGray"
 }
 
 # ─────────────────────────────────────────────
