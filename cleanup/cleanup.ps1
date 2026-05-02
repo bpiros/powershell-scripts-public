@@ -170,7 +170,7 @@ Run-Step "[Pre] Creating System Restore Point..." {
 # ─────────────────────────────────────────────
 # STEP 1: Clear Temp folders (files older than 7 days) + empty folders
 # ─────────────────────────────────────────────
-Run-Step "[1/14] Clearing Temp folders (files older than 7 days) and empty folders..." {
+Run-Step "[1/12] Clearing Temp folders (files older than 7 days) and empty folders..." {
 
     $totalFiles = 0
     $totalFolders = 0
@@ -273,7 +273,7 @@ Run-Step "[1/14] Clearing Temp folders (files older than 7 days) and empty folde
 # -Wait ensures cleanmgr finishes before the next step begins.
 # StateFlags9901 is used to avoid collisions with other tools using profile 1.
 # ─────────────────────────────────────────────
-Run-Step "[2/14] Configuring and running Disk Cleanup (cleanmgr)..." {
+Run-Step "[2/12] Configuring and running Disk Cleanup (cleanmgr)..." {
     $volCaches = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches'
     $categories = @(
         'Temporary Files',
@@ -300,7 +300,7 @@ Run-Step "[2/14] Configuring and running Disk Cleanup (cleanmgr)..." {
 # BITS and DoSvc are also stopped to prevent file-locking conflicts.
 # try/finally guarantees all three services restart even if deletion fails.
 # ─────────────────────────────────────────────
-Run-Step "[3/14] Clearing Windows Update download cache..." {
+Run-Step "[3/12] Clearing Windows Update download cache..." {
     Log "       Stopping Windows Update, BITS, and Delivery Optimization services..." "DarkGray"
     Stop-Service -Name wuauserv, BITS, DoSvc -Force -ErrorAction SilentlyContinue
     try {
@@ -315,14 +315,14 @@ Run-Step "[3/14] Clearing Windows Update download cache..." {
 # ─────────────────────────────────────────────
 # STEP 4: Clear winget download cache
 # ─────────────────────────────────────────────
-Run-Step "[4/14] Clearing winget download cache..." {
+Run-Step "[4/12] Clearing winget download cache..." {
     Remove-Item "$env:LOCALAPPDATA\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\LocalCache\Roaming\Microsoft\WinGet\Packages\*" -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 # ─────────────────────────────────────────────
 # STEP 5: Clear Scoop cache
 # ─────────────────────────────────────────────
-Run-Step "[5/14] Clearing Scoop cache..." {
+Run-Step "[5/12] Clearing Scoop cache..." {
     if (Get-Command scoop -ErrorAction SilentlyContinue) {
         scoop cache rm *
         Log "       Scoop cache cleared." "DarkGray"
@@ -335,7 +335,7 @@ Run-Step "[5/14] Clearing Scoop cache..." {
 # ─────────────────────────────────────────────
 # STEP 6: Clear developer tool caches (pip, npm)
 # ─────────────────────────────────────────────
-Run-Step "[6/14] Clearing developer tool caches..." {
+Run-Step "[6/12] Clearing developer tool caches..." {
     if (Get-Command pip -ErrorAction SilentlyContinue) {
         Log "       [pip] found — clearing cache..." "DarkGray"
         pip cache purge
