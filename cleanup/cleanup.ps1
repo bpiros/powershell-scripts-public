@@ -284,7 +284,7 @@ Run-Step "[6/15] Clearing Scoop cache..." {
 }
 
 # ─────────────────────────────────────────────
-# STEP 7: Clear developer tool caches (pip, npm, NuGet)
+# STEP 7: Clear developer tool caches (pip, npm)
 # ─────────────────────────────────────────────
 Run-Step "[7/15] Clearing developer tool caches..." {
     if (Get-Command pip -ErrorAction SilentlyContinue) {
@@ -299,13 +299,6 @@ Run-Step "[7/15] Clearing developer tool caches..." {
         npm cache clean --force
     } else {
         Log "       [npm] not found — skipping." "DarkGray"
-    }
-
-    if (Get-Command dotnet -ErrorAction SilentlyContinue) {
-        Log "       [NuGet/dotnet] found — clearing cache..." "DarkGray"
-        dotnet nuget locals all --clear
-    } else {
-        Log "       [NuGet/dotnet] not found — skipping." "DarkGray"
     }
 }
 
