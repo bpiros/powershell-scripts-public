@@ -2,6 +2,11 @@
 # Saves last run timestamp and a detailed log for each run.
 # Run this script as Administrator.
 
+param(
+    [Alias("AcceptDefaults")]
+    [switch]$NonInteractive
+)
+
 # --- Check for Administrator privileges ---
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Write-Host "ERROR: This script must be run as Administrator." -ForegroundColor Red
@@ -54,6 +59,9 @@ function Run-Step {
 # --- Optional step prompt helper ---
 function Ask-Optional {
     param([string]$question)
+    if ($NonInteractive) {
+        return $false
+    }
     Write-Host ""
     Write-Host "  $question" -ForegroundColor Yellow
     Write-Host "  [Y] Yes   [N] No (default: N)" -ForegroundColor DarkGray
@@ -103,10 +111,12 @@ Log "============================================" "DarkCyan"
 # ─────────────────────────────────────────────
 # Ask about optional steps upfront so the script can run unattended
 # ─────────────────────────────────────────────
-Write-Host ""
-Write-Host "  ══════════════════════════════════════════" -ForegroundColor DarkCyan
-Write-Host "   OPTIONAL STEPS — answer before we start" -ForegroundColor Cyan
-Write-Host "  ══════════════════════════════════════════" -ForegroundColor DarkCyan
+if (-not $NonInteractive) {
+    Write-Host ""
+    Write-Host "  ══════════════════════════════════════════" -ForegroundColor DarkCyan
+    Write-Host "   OPTIONAL STEPS — answer before we start" -ForegroundColor Cyan
+    Write-Host "  ══════════════════════════════════════════" -ForegroundColor DarkCyan
+}
 
 $runSfc      = Ask-Optional "[Optional A] Run System File Checker (sfc /scannow)?  [slow — ~10-30 min]"
 $runDism     = Ask-Optional "[Optional B] Run DISM RestoreHealth + ComponentCleanup?  [slow — ~20-60 min]"
