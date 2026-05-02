@@ -257,20 +257,27 @@ Run-Step "[1/12] Clearing Temp folders (files older than 7 days) and empty folde
         Where-Object { -not $_.PSIsContainer -and $_.LastWriteTime -lt $ageThreshold }
 
         if ($files) {
-            $count = ($files | Measure-Object).Count
-            $sizeBytes = ($files | Measure-Object -Property Length -Sum).Sum
+            $foundCount = ($files | Measure-Object).Count
+            $foundBytes = ($files | Measure-Object -Property Length -Sum).Sum
 
-            if ($sizeBytes -ge 1GB) {
-                $sizeLabel = "$([math]::Round($sizeBytes / 1GB, 2)) GB"
+            $sizeLabel = if ($foundBytes -ge 1GB) { "$([math]::Round($foundBytes / 1GB, 2)) GB" } else { "$([math]::Round($foundBytes / 1MB, 1)) MB" }
+
+            Log "         Found $foundCount file(s) to delete ($sizeLabel)" "DarkGray"
+            
+            if (-not $DryRun) {
+                $files | ForEach-Object {
+                    $len = $_.Length
+                    Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
+                    if (-not (Test-Path $_.FullName)) {
+                        $totalFiles++
+                        $totalBytes += $len
+                    }
+                }
             }
             else {
-                $sizeLabel = "$([math]::Round($sizeBytes / 1MB, 1)) MB"
+                $totalFiles += $foundCount
+                $totalBytes += $foundBytes
             }
-
-            Log "         Found $count file(s) to delete ($sizeLabel)" "DarkGray"
-            if (-not $DryRun) { $files | Remove-Item -Force -ErrorAction SilentlyContinue }
-            $totalFiles += $count
-            $totalBytes += $sizeBytes
         }
         else {
             Log "         No files older than 7 days found." "DarkGray"
@@ -282,14 +289,13 @@ Run-Step "[1/12] Clearing Temp folders (files older than 7 days) and empty folde
             $allDirs |
             Sort-Object { ($_.FullName -split '\\').Count } -Descending |
             ForEach-Object {
-                # Cheap leaf check — no recursion needed since we process deepest first
                 if (([System.IO.Directory]::GetFileSystemEntries($_.FullName)).Count -eq 0) {
-                    if (-not $DryRun) { Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue }
-                    $totalFolders++
+                    if (-not $DryRun) { 
+                        Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue 
+                        if (-not (Test-Path $_.FullName)) { $totalFolders++ }
+                    }
+                    else { $totalFolders++ }
                 }
-            }
-            if ($totalFolders -gt 0) {
-                Log "         Removed $totalFolders empty folder(s)." "DarkGray"
             }
         }
     }
@@ -304,9 +310,21 @@ Run-Step "[1/12] Clearing Temp folders (files older than 7 days) and empty folde
         $dmpBytes = ($dmpFiles | Measure-Object -Property Length -Sum).Sum
         $dmpLabel = if ($dmpBytes -ge 1GB) { "$([math]::Round($dmpBytes/1GB,2)) GB" } else { "$([math]::Round($dmpBytes/1MB,1)) MB" }
         Log "         Found $dmpCount .dmp file(s) to delete ($dmpLabel)" "DarkGray"
-        if (-not $DryRun) { $dmpFiles | Remove-Item -Force -ErrorAction SilentlyContinue }
-        $totalFiles += $dmpCount
-        $totalBytes += $dmpBytes
+        
+        if (-not $DryRun) {
+            $dmpFiles | ForEach-Object {
+                $len = $_.Length
+                Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
+                if (-not (Test-Path $_.FullName)) {
+                    $totalFiles++
+                    $totalBytes += $len
+                }
+            }
+        }
+        else {
+            $totalFiles += $dmpCount
+            $totalBytes += $dmpBytes
+        }
     }
     else {
         Log "         No .dmp files older than 7 days found." "DarkGray"
