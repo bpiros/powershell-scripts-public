@@ -117,6 +117,8 @@ Write-Host ""
 Write-Host "  Choices recorded. Starting cleanup now..." -ForegroundColor Green
 Write-Host "  ══════════════════════════════════════════" -ForegroundColor DarkCyan
 
+$stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+
 # ─────────────────────────────────────────────
 # PRE-STEP: Create a System Restore Point
 # Gives you a rollback safety net before anything is deleted.
@@ -691,5 +693,9 @@ else {
 Log ""
 Log "  Full log saved to: $logFile" "DarkGray"
 Log ""
+
+$stopwatch.Stop()
+Log "  Total time  : $($stopwatch.Elapsed.ToString('hh\:mm\:ss'))" "Gray"
+
 Write-Warning "A RESTART IS RECOMMENDED to apply all changes fully."
 Write-Host ""
