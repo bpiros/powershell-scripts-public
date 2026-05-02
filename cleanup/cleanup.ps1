@@ -359,18 +359,26 @@ Run-Step "[2/12] Configuring and running Disk Cleanup (cleanmgr)..." {
         return
     }
 
-    Log "       Launching cleanmgr /sagerun:9901 (timeout: 5 min)..." "DarkGray"
+    Log "       Launching cleanmgr /sagerun:9901 (Synchronous)..." "DarkGray"
     $proc = Start-Process -FilePath $cleanmgrPath -ArgumentList "/sagerun:9901" -PassThru -ErrorAction Stop
+    $startTime = Get-Date
+    $spinner = @('|', '/', '-', '\')
+    $counter = 0
 
-    $timeoutSec = 300
-    $finished = $proc.WaitForExit($timeoutSec * 1000)
-    if ($finished) {
-        Log "       cleanmgr completed (exit code: $($proc.ExitCode))." "DarkGray"
+    while (-not $proc.HasExited) {
+        $elapsed = (Get-Date) - $startTime
+        # Spinner only on console to avoid log bloat
+        Write-Host -NoNewline "`r       Still working... $($spinner[$counter % 4]) [$($elapsed.ToString('mm\:ss'))]   " -ForegroundColor DarkGray
+        $counter++
+        Start-Sleep -Milliseconds 500
+        
+        # Log a heartbeat to the file every 2 minutes
+        if ($counter % 240 -eq 0) { 
+            Add-Content -Path $logFile -Value "[$(Get-Date -Format 'HH:mm:ss')] cleanmgr still active ($($elapsed.ToString('mm\:ss')) elapsed)..."
+        }
     }
-    else {
-        $proc.Kill()
-        Log "       [WARN] cleanmgr did not finish within $timeoutSec seconds and was terminated." "Yellow"
-    }
+    Write-Host "" # Newline to clear the spinner line
+    Log "       cleanmgr completed (exit code: $($proc.ExitCode))." "DarkGray"
 }
 
 # ─────────────────────────────────────────────
