@@ -165,7 +165,7 @@ Run-Step "[Pre] Creating System Restore Point..." {
     Select-Object -First 1
 
     if ($lastRP) {
-        $hoursSinceLast = [math]::Round(((Get-Date) - $lastRP.CreationTime).TotalHours, 1)
+        $hoursSinceLast = [math]::Round(((Get-Date) - [datetime]$lastRP.CreationTime).TotalHours, 1)
         Log "       Most recent restore point: '$($lastRP.Description)' ($hoursSinceLast h ago)" "DarkGray"
     }
 
