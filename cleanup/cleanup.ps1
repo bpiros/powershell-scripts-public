@@ -497,11 +497,13 @@ Run-Step "[11/12] Clearing browser caches..." {
 # ─────────────────────────────────────────────
 Run-Step "[12/12] Surgical Android Studio and Gradle Cleanup..." {
     # 1. Stop Android Studio and Gradle Daemons
-    Log "       Stopping Android Studio and Gradle processes..." "DarkGray"
+    Log "       Stopping Android Studio processes..." "DarkGray"
     Get-Process -Name "studio64", "studio" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-    Get-Process -Name "java" -ErrorAction SilentlyContinue | 
-    Where-Object { $_.Path -like "*\.gradle\*" } | 
-    Stop-Process -Force -ErrorAction SilentlyContinue
+    
+    if (Get-Command gradle -ErrorAction SilentlyContinue) {
+        Log "       Shutting down Gradle daemons gracefully..." "DarkGray"
+        gradle --stop 2>&1 | Out-Null
+    }
     Start-Sleep -Seconds 3
 
     $now = Get-Date
