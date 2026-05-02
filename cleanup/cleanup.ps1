@@ -136,6 +136,8 @@ Write-Host ""
 Write-Host "  Choices recorded. Starting cleanup now..." -ForegroundColor Green
 Write-Host "  ══════════════════════════════════════════" -ForegroundColor DarkCyan
 
+Log "  Optional choices: SFC=$runSfc, DISM=$runDism, CHKDSK=$runChkdsk, Windows.old=$removeWinOld" "DarkGray"
+
 $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
 # ─────────────────────────────────────────────
