@@ -249,15 +249,16 @@ Run-Step "[3/15] Configuring and running Disk Cleanup (cleanmgr)..." {
 }
 
 # ─────────────────────────────────────────────
-# STEP 4: Clear Windows Update cache
+# STEP 4: Clear Windows Update download cache
+# Preserves the 'DataStore' folder to keep Windows Update history/metadata.
 # BITS and DoSvc are also stopped to prevent file-locking conflicts.
 # try/finally guarantees all three services restart even if deletion fails.
 # ─────────────────────────────────────────────
-Run-Step "[4/15] Clearing Windows Update cache..." {
+Run-Step "[4/15] Clearing Windows Update download cache..." {
     Log "       Stopping Windows Update, BITS, and Delivery Optimization services..." "DarkGray"
     Stop-Service -Name wuauserv, BITS, DoSvc -Force -ErrorAction SilentlyContinue
     try {
-        Remove-Item -Path "C:\Windows\SoftwareDistribution\*" -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path "C:\Windows\SoftwareDistribution\Download\*" -Recurse -Force -ErrorAction SilentlyContinue
     } finally {
         Log "       Restarting Windows Update, BITS, and Delivery Optimization services..." "DarkGray"
         Start-Service -Name wuauserv, BITS, DoSvc -ErrorAction SilentlyContinue
