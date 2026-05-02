@@ -406,12 +406,14 @@ Run-Step "[8/12] Flushing DNS cache..." {
 
 # ─────────────────────────────────────────────
 # STEP 9: Clear Windows Store cache
+# The -i flag runs wsreset silently (avoids the Store window popping up
+# on newer Windows 10/11 builds).
 # wsreset.exe spawns a child process and returns immediately, so -Wait
 # only catches the launcher exit. A Sleep buffer is used instead.
 # ─────────────────────────────────────────────
 Run-Step "[9/12] Clearing Windows Store cache (wsreset)..." {
-    Start-Process wsreset.exe
-    Log "       Waiting 15 seconds for wsreset to complete..." "DarkGray"
+    Start-Process wsreset.exe -ArgumentList "-i" -NoNewWindow
+    Log "       Waiting 15 seconds for silent wsreset to complete..." "DarkGray"
     Start-Sleep -Seconds 15
 }
 
