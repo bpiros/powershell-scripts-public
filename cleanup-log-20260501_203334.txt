@@ -1,0 +1,16 @@
+[20:33:34] 
+[20:33:34] ============================================
+[20:33:34]    SYSTEM CLEANUP SCRIPT
+[20:33:34] ============================================
+[20:33:34] 
+[20:33:34]   Last run : Never recorded
+[20:33:34] 
+[20:33:34]   Starting cleanup at 2026-05-01 20:33:34
+[20:33:34]   Free space on C: before: 95.47 GB
+[20:33:34]   Log file: C:\Users\piros\scripts\cleanup-log-20260501_203334.txt
+[20:33:34] ============================================
+[20:33:34] 
+[20:33:34] [1/14] Emptying Recycle Bin...
+[20:33:34]        Done.
+[20:33:34] 
+[20:33:34] [2/14] Clearing Temp folders (files older than 7 days) and empty folders...

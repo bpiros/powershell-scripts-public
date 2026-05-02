@@ -13,14 +13,17 @@ $SystemDrive = "C:"
 
 if (-not (Test-Path $scriptDir)) { New-Item -ItemType Directory -Path $scriptDir | Out-Null }
 
+$logDir = "$scriptDir\cleanup\logs"
+if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Path $logDir -Force | Out-Null }
+
 # --- Keep only the last 10 logs ---
-Get-ChildItem "$scriptDir\cleanup-log-*.txt" |
+Get-ChildItem "$logDir\cleanup-log-*.txt" -ErrorAction SilentlyContinue |
 Sort-Object LastWriteTime -Descending |
 Select-Object -Skip 10 |
 Remove-Item -Force -ErrorAction SilentlyContinue
 
-$timestampFile = "$scriptDir\cleanup-lastrun.txt"
-$logFile = "$scriptDir\cleanup-log-$(Get-Date -Format 'yyyyMMdd_HHmmss').txt"
+$timestampFile = "$logDir\cleanup-lastrun.txt"
+$logFile = "$logDir\cleanup-log-$(Get-Date -Format 'yyyyMMdd_HHmmss').txt"
 $ageThreshold = (Get-Date).AddDays(-7)
 
 # --- Logging function ---

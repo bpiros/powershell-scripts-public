@@ -1,2 +1,1 @@
-cleanup-log-*.txt
-cleanup-lastrun.txt
+cleanup/logs/

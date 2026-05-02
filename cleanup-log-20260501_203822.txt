@@ -1,0 +1,30 @@
+[20:38:22] 
+[20:38:22] ============================================
+[20:38:22]    SYSTEM CLEANUP SCRIPT
+[20:38:22] ============================================
+[20:38:22] 
+[20:38:22]   Last run : Never recorded
+[20:38:22] 
+[20:38:22]   Starting cleanup at 2026-05-01 20:38:22
+[20:38:22]   Free space on C: before: 95.59 GB
+[20:38:22]   Log file: C:\Users\piros\scripts\cleanup-log-20260501_203822.txt
+[20:38:22] ============================================
+[20:38:22] 
+[20:38:22] [1/14] Emptying Recycle Bin...
+[20:38:22]        Done.
+[20:38:22] 
+[20:38:22] [2/14] Clearing Temp folders (files older than 7 days) and empty folders...
+[20:38:22]        Scanning: C:\Users\piros\AppData\Local\Temp
+[20:38:22]          Found 1 file(s) to delete (0 MB)
+[20:38:22]        Scanning: C:\Windows\Temp
+[20:38:22]          No files older than 7 days found.
+[20:38:22]        Scanning: C:\Windows\Prefetch
+[20:38:22]          No files older than 7 days found.
+[20:38:22]        Scanning: C:\Users\piros\AppData\Local\Temp
+[20:38:22]          Found 1 file(s) to delete (0 MB)
+[20:38:22]        [SKIP] Path not found: C:\Users\*\AppData\Local\Microsoft\Windows\INetCookies
+[20:38:22]        Scanning: C:\Users\piros\AppData\Local\CrashDumps
+[20:38:22]          No files older than 7 days found.
+[20:38:22]        [SKIP] Path not found: C:\Users\*\AppData\Local\Microsoft\Windows\WER
+[20:38:22]        Scanning: C:\Windows
+[20:39:21]          Found 174237 file(s) to delete (69.36 GB)
