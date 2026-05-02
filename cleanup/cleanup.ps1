@@ -4,7 +4,10 @@
 
 param(
     [Alias("AcceptDefaults")]
-    [switch]$NonInteractive
+    [switch]$NonInteractive,
+
+    [Alias("WhatIf")]
+    [switch]$DryRun
 )
 
 # --- Check for Administrator privileges ---
@@ -109,6 +112,7 @@ else {
 
 Log ""
 Log "  Starting cleanup at $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" "White"
+if ($DryRun) { Log "  [DRY RUN MODE] No changes will be applied." "Yellow" }
 Log "  Free space on $SystemDrive before: $([math]::Round($diskBefore / 1GB, 2)) GB" "Gray"
 Log "  Log file: $logFile" "DarkGray"
 Log "============================================" "DarkCyan"
@@ -261,7 +265,7 @@ Run-Step "[1/12] Clearing Temp folders (files older than 7 days) and empty folde
             }
 
             Log "         Found $count file(s) to delete ($sizeLabel)" "DarkGray"
-            $files | Remove-Item -Force -ErrorAction SilentlyContinue
+            if (-not $DryRun) { $files | Remove-Item -Force -ErrorAction SilentlyContinue }
             $totalFiles += $count
             $totalBytes += $sizeBytes
         }
@@ -277,7 +281,7 @@ Run-Step "[1/12] Clearing Temp folders (files older than 7 days) and empty folde
             ForEach-Object {
                 # Cheap leaf check — no recursion needed since we process deepest first
                 if (([System.IO.Directory]::GetFileSystemEntries($_.FullName)).Count -eq 0) {
-                    Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
+                    if (-not $DryRun) { Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue }
                     $totalFolders++
                 }
             }
@@ -297,7 +301,7 @@ Run-Step "[1/12] Clearing Temp folders (files older than 7 days) and empty folde
         $dmpBytes = ($dmpFiles | Measure-Object -Property Length -Sum).Sum
         $dmpLabel = if ($dmpBytes -ge 1GB) { "$([math]::Round($dmpBytes/1GB,2)) GB" } else { "$([math]::Round($dmpBytes/1MB,1)) MB" }
         Log "         Found $dmpCount .dmp file(s) to delete ($dmpLabel)" "DarkGray"
-        $dmpFiles | Remove-Item -Force -ErrorAction SilentlyContinue
+        if (-not $DryRun) { $dmpFiles | Remove-Item -Force -ErrorAction SilentlyContinue }
         $totalFiles += $dmpCount
         $totalBytes += $dmpBytes
     }
@@ -307,7 +311,12 @@ Run-Step "[1/12] Clearing Temp folders (files older than 7 days) and empty folde
 
     # --- Step summary ---
     $totalLabel = if ($totalBytes -ge 1GB) { "$([math]::Round($totalBytes/1GB,2)) GB" } else { "$([math]::Round($totalBytes/1MB,1)) MB" }
-    Log "       Total: $totalFiles file(s) deleted ($totalLabel), $totalFolders empty folder(s) removed." "Green"
+    if ($DryRun) {
+        Log "       [DRY RUN] Total: $totalFiles file(s) would be deleted ($totalLabel), $totalFolders empty folder(s) would be removed." "Yellow"
+    }
+    else {
+        Log "       Total: $totalFiles file(s) deleted ($totalLabel), $totalFolders empty folder(s) removed." "Green"
+    }
 }
 
 # ─────────────────────────────────────────────
@@ -338,8 +347,13 @@ Run-Step "[2/12] Configuring and running Disk Cleanup (cleanmgr)..." {
     foreach ($cat in $categories) {
         $path = Join-Path $volCaches $cat
         if (Test-Path $path) {
-            Set-ItemProperty -Path $path -Name 'StateFlags9901' -Value 2 -Type DWord -Force -ErrorAction SilentlyContinue
+            if (-not $DryRun) { Set-ItemProperty -Path $path -Name 'StateFlags9901' -Value 2 -Type DWord -Force -ErrorAction SilentlyContinue }
         }
+    }
+
+    if ($DryRun) {
+        Log "       [DRY RUN] Would launch cleanmgr /sagerun:9901." "Yellow"
+        return
     }
 
     Log "       Launching cleanmgr /sagerun:9901 (timeout: 5 min)..." "DarkGray"
@@ -364,13 +378,14 @@ Run-Step "[2/12] Configuring and running Disk Cleanup (cleanmgr)..." {
 # ─────────────────────────────────────────────
 Run-Step "[3/12] Clearing Windows Update download cache..." {
     Log "       Stopping Windows Update, BITS, and Delivery Optimization services..." "DarkGray"
-    Stop-Service -Name wuauserv, BITS, DoSvc -Force -ErrorAction SilentlyContinue
+    if (-not $DryRun) { Stop-Service -Name wuauserv, BITS, DoSvc -Force -ErrorAction SilentlyContinue }
     try {
-        Remove-Item -Path "$SystemDrive\Windows\SoftwareDistribution\Download\*" -Recurse -Force -ErrorAction SilentlyContinue
+        if (-not $DryRun) { Remove-Item -Path "$SystemDrive\Windows\SoftwareDistribution\Download\*" -Recurse -Force -ErrorAction SilentlyContinue }
+        else { Log "       [DRY RUN] Would clear SoftwareDistribution\Download cache." "Yellow" }
     }
     finally {
         Log "       Restarting Windows Update, BITS, and Delivery Optimization services..." "DarkGray"
-        Start-Service -Name wuauserv, BITS, DoSvc -ErrorAction SilentlyContinue
+        if (-not $DryRun) { Start-Service -Name wuauserv, BITS, DoSvc -ErrorAction SilentlyContinue }
     }
 }
 
@@ -378,7 +393,12 @@ Run-Step "[3/12] Clearing Windows Update download cache..." {
 # STEP 4: Clear winget download cache
 # ─────────────────────────────────────────────
 Run-Step "[4/12] Clearing winget download cache..." {
-    Remove-Item "$env:LOCALAPPDATA\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\LocalCache\Roaming\Microsoft\WinGet\Packages\*" -Recurse -Force -ErrorAction SilentlyContinue
+    if (-not $DryRun) {
+        Remove-Item "$env:LOCALAPPDATA\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\LocalCache\Roaming\Microsoft\WinGet\Packages\*" -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    else {
+        Log "       [DRY RUN] Would clear winget download cache." "Yellow"
+    }
 }
 
 # ─────────────────────────────────────────────
@@ -386,7 +406,8 @@ Run-Step "[4/12] Clearing winget download cache..." {
 # ─────────────────────────────────────────────
 Run-Step "[5/12] Clearing Scoop cache..." {
     if (Get-Command scoop -ErrorAction SilentlyContinue) {
-        scoop cache rm *
+        if (-not $DryRun) { scoop cache rm * }
+        else { Log "       [DRY RUN] Would run: scoop cache rm *" "Yellow" }
         Log "       Scoop cache cleared." "DarkGray"
     }
     else {
@@ -400,7 +421,8 @@ Run-Step "[5/12] Clearing Scoop cache..." {
 Run-Step "[6/12] Clearing developer tool caches..." {
     if (Get-Command pip -ErrorAction SilentlyContinue) {
         Log "       [pip] found — clearing cache..." "DarkGray"
-        pip cache purge
+        if (-not $DryRun) { pip cache purge }
+        else { Log "       [DRY RUN] Would run: pip cache purge" "Yellow" }
     }
     else {
         Log "       [pip] not found — skipping." "DarkGray"
@@ -408,7 +430,8 @@ Run-Step "[6/12] Clearing developer tool caches..." {
 
     if (Get-Command npm -ErrorAction SilentlyContinue) {
         Log "       [npm] found — clearing cache..." "DarkGray"
-        npm cache clean --force
+        if (-not $DryRun) { npm cache clean --force }
+        else { Log "       [DRY RUN] Would run: npm cache clean --force" "Yellow" }
     }
     else {
         Log "       [npm] not found — skipping." "DarkGray"
@@ -429,9 +452,14 @@ Run-Step "[7/12] Clearing selected low-value Windows Event Logs..." {
         "Microsoft-Windows-DriverFrameworks-UserMode/Operational"
     )
     foreach ($log in $logsToClear) {
-        wevtutil cl "$log" 2>$null
-        if ($LASTEXITCODE -ne 0) { Log "       [WARN] Could not clear: $log (exit code $LASTEXITCODE)" "Yellow" }
-        else { Log "       Cleared: $log" "DarkGray" }
+        if (-not $DryRun) {
+            wevtutil cl "$log" 2>$null
+            if ($LASTEXITCODE -ne 0) { Log "       [WARN] Could not clear: $log (exit code $LASTEXITCODE)" "Yellow" }
+            else { Log "       Cleared: $log" "DarkGray" }
+        }
+        else {
+            Log "       [DRY RUN] Would clear: $log" "Yellow"
+        }
     }
 }
 
@@ -439,7 +467,8 @@ Run-Step "[7/12] Clearing selected low-value Windows Event Logs..." {
 # STEP 8: Clear DNS Cache
 # ─────────────────────────────────────────────
 Run-Step "[8/12] Flushing DNS cache..." {
-    Clear-DnsClientCache
+    if (-not $DryRun) { Clear-DnsClientCache }
+    else { Log "       [DRY RUN] Would flush DNS cache." "Yellow" }
 }
 
 # ─────────────────────────────────────────────
@@ -450,7 +479,12 @@ Run-Step "[8/12] Flushing DNS cache..." {
 # only catches the launcher exit. A Sleep buffer is used instead.
 # ─────────────────────────────────────────────
 Run-Step "[9/12] Clearing Windows Store cache (wsreset)..." {
-    Start-Process wsreset.exe -ArgumentList "-i" -NoNewWindow
+    if (-not $DryRun) {
+        Start-Process wsreset.exe -ArgumentList "-i" -NoNewWindow
+    }
+    else {
+        Log "       [DRY RUN] Would launch wsreset.exe -i." "Yellow"
+    }
     Log "       Waiting 15 seconds for silent wsreset to complete..." "DarkGray"
     Start-Sleep -Seconds 15
 }
@@ -463,14 +497,20 @@ Run-Step "[10/12] Flushing thumbnail and font caches..." {
     # Thumbnail/Icon cache (non-destructive refresh)
     Log "       Refreshing icon and thumbnail cache..." "DarkGray"
     if (Test-Path "$env:WinDir\System32\ie4uinit.exe") {
-        Start-Process "ie4uinit.exe" -ArgumentList "-show" -Wait
+        if (-not $DryRun) { Start-Process "ie4uinit.exe" -ArgumentList "-show" -Wait }
+        else { Log "       [DRY RUN] Would launch ie4uinit.exe -show." "Yellow" }
     }
 
     # Font cache (standard service-based flush)
     Log "       Flushing font cache..." "DarkGray"
-    Stop-Service -Name "FontCache" -Force -ErrorAction SilentlyContinue
-    Remove-Item "$env:WinDir\ServiceProfiles\LocalService\AppData\Local\FontCache\*" -Force -ErrorAction SilentlyContinue
-    Start-Service -Name "FontCache" -ErrorAction SilentlyContinue
+    if (-not $DryRun) {
+        Stop-Service -Name "FontCache" -Force -ErrorAction SilentlyContinue
+        Remove-Item "$env:WinDir\ServiceProfiles\LocalService\AppData\Local\FontCache\*" -Force -ErrorAction SilentlyContinue
+        Start-Service -Name "FontCache" -ErrorAction SilentlyContinue
+    }
+    else {
+        Log "       [DRY RUN] Would flush font cache." "Yellow"
+    }
 }
 
 # ─────────────────────────────────────────────
@@ -518,9 +558,10 @@ Run-Step "[11/12] Clearing browser caches..." {
             }
             Log "       [$browser] found — clearing cache..." "DarkGray"
             foreach ($cachePath in $browsers[$browser]) {
-                Remove-Item -Path $cachePath -Recurse -Force -ErrorAction SilentlyContinue
+                if (-not $DryRun) { Remove-Item -Path $cachePath -Recurse -Force -ErrorAction SilentlyContinue }
             }
-            Log "       [$browser] cache cleared." "DarkGray"
+            if ($DryRun) { Log "       [DRY RUN] Would clear [$browser] cache." "Yellow" }
+            else { Log "       [$browser] cache cleared." "DarkGray" }
         }
         else {
             Log "       [$browser] not found — skipping." "DarkGray"
@@ -536,11 +577,14 @@ Run-Step "[11/12] Clearing browser caches..." {
 Run-Step "[12/12] Surgical Android Studio and Gradle Cleanup..." {
     # 1. Stop Android Studio and Gradle Daemons
     Log "       Stopping Android Studio processes..." "DarkGray"
-    Get-Process -Name "studio64", "studio" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    if (-not $DryRun) {
+        Get-Process -Name "studio64", "studio" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    }
     
     if (Get-Command gradle -ErrorAction SilentlyContinue) {
         Log "       Shutting down Gradle daemons gracefully..." "DarkGray"
-        gradle --stop 2>&1 | Out-Null
+        if (-not $DryRun) { gradle --stop 2>&1 | Out-Null }
+        else { Log "       [DRY RUN] Would run: gradle --stop" "Yellow" }
     }
     Start-Sleep -Seconds 3
 
@@ -557,23 +601,32 @@ Run-Step "[12/12] Surgical Android Studio and Gradle Cleanup..." {
         $cachePaths = @("$gradleBase\caches\modules-2", "$gradleBase\caches\transforms-3")
         foreach ($path in $cachePaths) {
             if (Test-Path $path) {
-                Get-ChildItem -Path $path -Recurse -Force -ErrorAction SilentlyContinue |
-                Where-Object { $_.LastWriteTime -lt $old30 } |
-                Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+                if (-not $DryRun) {
+                    Get-ChildItem -Path $path -Recurse -Force -ErrorAction SilentlyContinue |
+                    Where-Object { $_.LastWriteTime -lt $old30 } |
+                    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+                }
+                else { Log "       [DRY RUN] Would clean $path (30+ days)." "Yellow" }
             }
         }
 
         # Clean old Gradle distributions
         if (Test-Path "$gradleBase\wrapper\dists") {
-            Get-ChildItem -Path "$gradleBase\wrapper\dists" -Directory -ErrorAction SilentlyContinue |
-            Where-Object { $_.LastWriteTime -lt $old30 } |
-            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+            if (-not $DryRun) {
+                Get-ChildItem -Path "$gradleBase\wrapper\dists" -Directory -ErrorAction SilentlyContinue |
+                Where-Object { $_.LastWriteTime -lt $old30 } |
+                Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+            }
+            else { Log "       [DRY RUN] Would clean old Gradle distributions (30+ days)." "Yellow" }
         }
 
         # Clear daemon logs entirely (they are just text logs)
         if (Test-Path "$gradleBase\daemon") {
-            Get-ChildItem -Path "$gradleBase\daemon" -Filter "*.log" -Recurse -Force -ErrorAction SilentlyContinue |
-            Remove-Item -Force -ErrorAction SilentlyContinue
+            if (-not $DryRun) {
+                Get-ChildItem -Path "$gradleBase\daemon" -Filter "*.log" -Recurse -Force -ErrorAction SilentlyContinue |
+                Remove-Item -Force -ErrorAction SilentlyContinue
+            }
+            else { Log "       [DRY RUN] Would clear Gradle daemon logs." "Yellow" }
         }
     }
 
@@ -586,16 +639,22 @@ Run-Step "[12/12] Surgical Android Studio and Gradle Cleanup..." {
             
         # Logs
         if (Test-Path "$asFolder\log") {
-            Get-ChildItem -Path "$asFolder\log" -File -ErrorAction SilentlyContinue |
-            Where-Object { $_.LastWriteTime -lt $old7 } |
-            Remove-Item -Force -ErrorAction SilentlyContinue
+            if (-not $DryRun) {
+                Get-ChildItem -Path "$asFolder\log" -File -ErrorAction SilentlyContinue |
+                Where-Object { $_.LastWriteTime -lt $old7 } |
+                Remove-Item -Force -ErrorAction SilentlyContinue
+            }
+            else { Log "       [DRY RUN] Would clean AS logs for $($_.Name) (7+ days)." "Yellow" }
         }
             
         # Tmp
         if (Test-Path "$asFolder\tmp") {
-            Get-ChildItem -Path "$asFolder\tmp" -Recurse -Force -ErrorAction SilentlyContinue |
-            Where-Object { $_.LastWriteTime -lt $old7 } |
-            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+            if (-not $DryRun) {
+                Get-ChildItem -Path "$asFolder\tmp" -Recurse -Force -ErrorAction SilentlyContinue |
+                Where-Object { $_.LastWriteTime -lt $old7 } |
+                Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+            }
+            else { Log "       [DRY RUN] Would clean AS tmp for $($_.Name) (7+ days)." "Yellow" }
         }
     }
 
@@ -603,9 +662,12 @@ Run-Step "[12/12] Surgical Android Studio and Gradle Cleanup..." {
     $kotlinCache = "$env:LOCALAPPDATA\Kotlin\cache"
     if (Test-Path $kotlinCache) {
         Log "       Cleaning Kotlin compiler cache (30+ days)..." "DarkGray"
-        Get-ChildItem -Path $kotlinCache -Recurse -ErrorAction SilentlyContinue |
-        Where-Object { $_.LastWriteTime -lt $old30 } |
-        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        if (-not $DryRun) {
+            Get-ChildItem -Path $kotlinCache -Recurse -ErrorAction SilentlyContinue |
+            Where-Object { $_.LastWriteTime -lt $old30 } |
+            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        }
+        else { Log "       [DRY RUN] Would clean Kotlin compiler cache (30+ days)." "Yellow" }
     }
 
 }
@@ -616,8 +678,11 @@ Run-Step "[12/12] Surgical Android Studio and Gradle Cleanup..." {
 if ($runSfc) {
     Run-Step "[Optional A] Running System File Checker (sfc /scannow)..." {
         Log "       This may take several minutes..." "DarkGray"
-        sfc /scannow
-        if ($LASTEXITCODE -ne 0) { Log "       SFC exited with code $LASTEXITCODE — review the log." "Yellow" }
+        if (-not $DryRun) {
+            sfc /scannow
+            if ($LASTEXITCODE -ne 0) { Log "       SFC exited with code $LASTEXITCODE — review the log." "Yellow" }
+        }
+        else { Log "       [DRY RUN] Would run: sfc /scannow" "Yellow" }
     }
 }
 else {
@@ -632,10 +697,13 @@ else {
 if ($runDism) {
     Run-Step "[Optional B] Running DISM RestoreHealth + ComponentCleanup..." {
         Log "       This may take several minutes..." "DarkGray"
-        dism /Online /Cleanup-Image /RestoreHealth
-        if ($LASTEXITCODE -ne 0) { Log "       DISM RestoreHealth exited with code $LASTEXITCODE — review the log." "Yellow" }
-        dism /Online /Cleanup-Image /StartComponentCleanup
-        if ($LASTEXITCODE -ne 0) { Log "       DISM ComponentCleanup exited with code $LASTEXITCODE — review the log." "Yellow" }
+        if (-not $DryRun) {
+            dism /Online /Cleanup-Image /RestoreHealth
+            if ($LASTEXITCODE -ne 0) { Log "       DISM RestoreHealth exited with code $LASTEXITCODE — review the log." "Yellow" }
+            dism /Online /Cleanup-Image /StartComponentCleanup
+            if ($LASTEXITCODE -ne 0) { Log "       DISM ComponentCleanup exited with code $LASTEXITCODE — review the log." "Yellow" }
+        }
+        else { Log "       [DRY RUN] Would run DISM RestoreHealth + ComponentCleanup." "Yellow" }
     }
 }
 else {
@@ -664,7 +732,8 @@ else {
 # ─────────────────────────────────────────────
 if ($removeWinOld) {
     Run-Step "[Optional D] Removing Windows.old folder..." {
-        Remove-Item "$SystemDrive\Windows.old" -Recurse -Force -ErrorAction SilentlyContinue
+        if (-not $DryRun) { Remove-Item "$SystemDrive\Windows.old" -Recurse -Force -ErrorAction SilentlyContinue }
+        else { Log "       [DRY RUN] Would remove Windows.old folder." "Yellow" }
     }
 }
 else {
@@ -678,7 +747,12 @@ else {
 $diskAfter = (Get-PSDrive -Name ($SystemDrive -replace ':', '')).Free
 $freedBytes = $diskAfter - $diskBefore
 
-(Get-Date).ToString('o') | Set-Content $timestampFile
+if (-not $DryRun) {
+    (Get-Date).ToString('o') | Set-Content $timestampFile
+}
+else {
+    Log "       [DRY RUN] Skipping last-run timestamp update." "DarkGray"
+}
 
 Log ""
 Log "============================================" "DarkCyan"
