@@ -8,18 +8,18 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
     exit 1
 }
 
-$scriptDir     = "$env:USERPROFILE\scripts\public"
+$scriptDir = "$env:USERPROFILE\scripts\public"
 if (-not (Test-Path $scriptDir)) { New-Item -ItemType Directory -Path $scriptDir | Out-Null }
 
 # --- Keep only the last 10 logs ---
 Get-ChildItem "$scriptDir\cleanup-log-*.txt" |
-    Sort-Object LastWriteTime -Descending |
-    Select-Object -Skip 10 |
-    Remove-Item -Force -ErrorAction SilentlyContinue
+Sort-Object LastWriteTime -Descending |
+Select-Object -Skip 10 |
+Remove-Item -Force -ErrorAction SilentlyContinue
 
 $timestampFile = "$scriptDir\cleanup-lastrun.txt"
-$logFile       = "$scriptDir\cleanup-log-$(Get-Date -Format 'yyyyMMdd_HHmmss').txt"
-$ageThreshold  = (Get-Date).AddDays(-7)
+$logFile = "$scriptDir\cleanup-log-$(Get-Date -Format 'yyyyMMdd_HHmmss').txt"
+$ageThreshold = (Get-Date).AddDays(-7)
 
 # --- Logging function ---
 function Log {
@@ -36,7 +36,8 @@ function Run-Step {
     try {
         & $action
         Log "       Done." "Green"
-    } catch {
+    }
+    catch {
         Log "       ERROR: $_" "Red"
     }
 }
@@ -46,9 +47,9 @@ $diskBefore = (Get-PSDrive -Name C).Free
 
 # --- Show last run info ---
 if (Test-Path $timestampFile) {
-    $lastRun     = Get-Content $timestampFile
+    $lastRun = Get-Content $timestampFile
     $lastRunDate = [datetime]$lastRun
-    $daysSince   = [math]::Floor((Get-Date - $lastRunDate).TotalDays)
+    $daysSince = [math]::Floor((Get-Date - $lastRunDate).TotalDays)
     Log ""
     Log "============================================" "DarkCyan"
     Log "   SYSTEM CLEANUP SCRIPT" "Cyan"
@@ -57,12 +58,15 @@ if (Test-Path $timestampFile) {
     Log "  Last run : $($lastRunDate.ToString('yyyy-MM-dd HH:mm'))" "Gray"
     if ($daysSince -gt 30) {
         Log "  Days ago : $daysSince day(s)  [Overdue!]" "Red"
-    } elseif ($daysSince -gt 14) {
+    }
+    elseif ($daysSince -gt 14) {
         Log "  Days ago : $daysSince day(s)" "Yellow"
-    } else {
+    }
+    else {
         Log "  Days ago : $daysSince day(s)" "Green"
     }
-} else {
+}
+else {
     Log ""
     Log "============================================" "DarkCyan"
     Log "   SYSTEM CLEANUP SCRIPT" "Cyan"
@@ -95,9 +99,9 @@ Run-Step "[Pre] Creating System Restore Point..." {
 # ─────────────────────────────────────────────
 Run-Step "[1/14] Clearing Temp folders (files older than 7 days) and empty folders..." {
 
-    $totalFiles   = 0
+    $totalFiles = 0
     $totalFolders = 0
-    $totalBytes   = 0
+    $totalBytes = 0
 
     # --- Folders to scan recursively (Prefetch handled separately below) ---
     $tempFolders = @(
@@ -134,32 +138,34 @@ Run-Step "[1/14] Clearing Temp folders (files older than 7 days) and empty folde
         Log "       Scanning: $folder" "DarkGray"
 
         $files = Get-ChildItem -Path $folder -Recurse -Force -ErrorAction SilentlyContinue |
-            Where-Object { -not $_.PSIsContainer -and $_.LastWriteTime -lt $ageThreshold }
+        Where-Object { -not $_.PSIsContainer -and $_.LastWriteTime -lt $ageThreshold }
 
         if ($files) {
-            $count     = ($files | Measure-Object).Count
+            $count = ($files | Measure-Object).Count
             $sizeBytes = ($files | Measure-Object -Property Length -Sum).Sum
 
             if ($sizeBytes -ge 1GB) {
                 $sizeLabel = "$([math]::Round($sizeBytes / 1GB, 2)) GB"
-            } else {
+            }
+            else {
                 $sizeLabel = "$([math]::Round($sizeBytes / 1MB, 1)) MB"
             }
 
             Log "         Found $count file(s) to delete ($sizeLabel)" "DarkGray"
             $files | Remove-Item -Force -ErrorAction SilentlyContinue
-            $totalFiles  += $count
-            $totalBytes  += $sizeBytes
-        } else {
+            $totalFiles += $count
+            $totalBytes += $sizeBytes
+        }
+        else {
             Log "         No files older than 7 days found." "DarkGray"
         }
 
         # Remove leftover empty folders
         $emptyFolders = Get-ChildItem -Path $folder -Directory -Recurse -Force -ErrorAction SilentlyContinue |
-            Where-Object { (Get-ChildItem $_.FullName -Recurse -Force -ErrorAction SilentlyContinue).Count -eq 0 }
+        Where-Object { (Get-ChildItem $_.FullName -Recurse -Force -ErrorAction SilentlyContinue).Count -eq 0 }
 
         if ($emptyFolders) {
-            $emptyCount    = ($emptyFolders | Measure-Object).Count
+            $emptyCount = ($emptyFolders | Measure-Object).Count
             $totalFolders += $emptyCount
             Log "         Removing $emptyCount empty folder(s)..." "DarkGray"
             $emptyFolders | Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
@@ -167,7 +173,7 @@ Run-Step "[1/14] Clearing Temp folders (files older than 7 days) and empty folde
     }
 
     # --- Prefetch: only delete .pf files not accessed in the last 14 days ---
-    $prefetchPath      = "C:\Windows\Prefetch"
+    $prefetchPath = "C:\Windows\Prefetch"
     $prefetchThreshold = (Get-Date).AddDays(-14)
 
     if (Test-Path $prefetchPath) {
@@ -178,10 +184,11 @@ Run-Step "[1/14] Clearing Temp folders (files older than 7 days) and empty folde
         if ($ntfsKey -ne 0) {
             Log "       [WARN] LastAccessTime is disabled on this system — falling back to LastWriteTime for prefetch." "Yellow"
             $pfFiles = Get-ChildItem -Path $prefetchPath -Filter "*.pf" -Force -ErrorAction SilentlyContinue |
-                Where-Object { $_.LastWriteTime -lt $prefetchThreshold }
-        } else {
+            Where-Object { $_.LastWriteTime -lt $prefetchThreshold }
+        }
+        else {
             $pfFiles = Get-ChildItem -Path $prefetchPath -Filter "*.pf" -Force -ErrorAction SilentlyContinue |
-                Where-Object { $_.LastAccessTime -lt $prefetchThreshold }
+            Where-Object { $_.LastAccessTime -lt $prefetchThreshold }
         }
 
         if ($pfFiles) {
@@ -192,17 +199,19 @@ Run-Step "[1/14] Clearing Temp folders (files older than 7 days) and empty folde
             $pfFiles | Remove-Item -Force -ErrorAction SilentlyContinue
             $totalFiles += $pfCount
             $totalBytes += $pfBytes
-        } else {
+        }
+        else {
             Log "         No prefetch files unused for 14+ days found." "DarkGray"
         }
-    } else {
+    }
+    else {
         Log "       [SKIP] Prefetch folder not found." "DarkGray"
     }
 
     # --- Handle .dmp crash dump files in C:\Windows separately ---
     Log "       Scanning: C:\Windows (*.dmp files only)" "DarkGray"
     $dmpFiles = Get-ChildItem -Path "C:\Windows" -Filter "*.dmp" -Force -ErrorAction SilentlyContinue |
-        Where-Object { $_.LastWriteTime -lt $ageThreshold }
+    Where-Object { $_.LastWriteTime -lt $ageThreshold }
 
     if ($dmpFiles) {
         $dmpCount = ($dmpFiles | Measure-Object).Count
@@ -212,7 +221,8 @@ Run-Step "[1/14] Clearing Temp folders (files older than 7 days) and empty folde
         $dmpFiles | Remove-Item -Force -ErrorAction SilentlyContinue
         $totalFiles += $dmpCount
         $totalBytes += $dmpBytes
-    } else {
+    }
+    else {
         Log "         No .dmp files older than 7 days found." "DarkGray"
     }
 
@@ -227,7 +237,7 @@ Run-Step "[1/14] Clearing Temp folders (files older than 7 days) and empty folde
 # StateFlags9901 is used to avoid collisions with other tools using profile 1.
 # ─────────────────────────────────────────────
 Run-Step "[2/14] Configuring and running Disk Cleanup (cleanmgr)..." {
-    $volCaches  = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches'
+    $volCaches = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches'
     $categories = @(
         'Temporary Files',
         'Recycle Bin',
@@ -258,7 +268,8 @@ Run-Step "[3/14] Clearing Windows Update download cache..." {
     Stop-Service -Name wuauserv, BITS, DoSvc -Force -ErrorAction SilentlyContinue
     try {
         Remove-Item -Path "C:\Windows\SoftwareDistribution\Download\*" -Recurse -Force -ErrorAction SilentlyContinue
-    } finally {
+    }
+    finally {
         Log "       Restarting Windows Update, BITS, and Delivery Optimization services..." "DarkGray"
         Start-Service -Name wuauserv, BITS, DoSvc -ErrorAction SilentlyContinue
     }
@@ -278,7 +289,8 @@ Run-Step "[5/14] Clearing Scoop cache..." {
     if (Get-Command scoop -ErrorAction SilentlyContinue) {
         scoop cache rm *
         Log "       Scoop cache cleared." "DarkGray"
-    } else {
+    }
+    else {
         Log "       Scoop not found — skipping." "DarkGray"
     }
 }
@@ -290,14 +302,16 @@ Run-Step "[6/14] Clearing developer tool caches..." {
     if (Get-Command pip -ErrorAction SilentlyContinue) {
         Log "       [pip] found — clearing cache..." "DarkGray"
         pip cache purge
-    } else {
+    }
+    else {
         Log "       [pip] not found — skipping." "DarkGray"
     }
 
     if (Get-Command npm -ErrorAction SilentlyContinue) {
         Log "       [npm] found — clearing cache..." "DarkGray"
         npm cache clean --force
-    } else {
+    }
+    else {
         Log "       [npm] not found — skipping." "DarkGray"
     }
 }
@@ -416,7 +430,7 @@ Run-Step "[13/14] Clearing browser caches..." {
         "Mozilla Firefox" = "firefox"
     }
     foreach ($browser in $browsers.Keys) {
-        $exePath     = $browserExePaths[$browser]
+        $exePath = $browserExePaths[$browser]
         $processName = $browserProcessNames[$browser]
         if (Test-Path $exePath) {
             if (Get-Process -Name $processName -ErrorAction SilentlyContinue) {
@@ -428,7 +442,8 @@ Run-Step "[13/14] Clearing browser caches..." {
                 Remove-Item -Path $cachePath -Recurse -Force -ErrorAction SilentlyContinue
             }
             Log "       [$browser] cache cleared." "DarkGray"
-        } else {
+        }
+        else {
             Log "       [$browser] not found — skipping." "DarkGray"
         }
     }
@@ -444,13 +459,13 @@ Run-Step "[14/14] Surgical Android Studio and Gradle Cleanup..." {
     Log "       Stopping Android Studio and Gradle processes..." "DarkGray"
     Get-Process -Name "studio64", "studio" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
     Get-Process -Name "java" -ErrorAction SilentlyContinue | 
-        Where-Object { $_.Path -like "*\.gradle\*" } | 
-        Stop-Process -Force -ErrorAction SilentlyContinue
+    Where-Object { $_.Path -like "*\.gradle\*" } | 
+    Stop-Process -Force -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 3
 
     $now = Get-Date
     $old30 = $now.AddDays(-30)
-    $old7  = $now.AddDays(-7)
+    $old7 = $now.AddDays(-7)
 
     # 2. Targeted Gradle Cleanup
     $gradleBase = "$env:USERPROFILE\.gradle"
@@ -462,73 +477,56 @@ Run-Step "[14/14] Surgical Android Studio and Gradle Cleanup..." {
         foreach ($path in $cachePaths) {
             if (Test-Path $path) {
                 Get-ChildItem -Path $path -Recurse -Force -ErrorAction SilentlyContinue |
-                    Where-Object { $_.LastWriteTime -lt $old30 } |
-                    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+                Where-Object { $_.LastWriteTime -lt $old30 } |
+                Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
             }
         }
 
         # Clean old Gradle distributions
         if (Test-Path "$gradleBase\wrapper\dists") {
             Get-ChildItem -Path "$gradleBase\wrapper\dists" -Directory -ErrorAction SilentlyContinue |
-                Where-Object { $_.LastWriteTime -lt $old30 } |
-                Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+            Where-Object { $_.LastWriteTime -lt $old30 } |
+            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
         }
 
         # Clear daemon logs entirely (they are just text logs)
         if (Test-Path "$gradleBase\daemon") {
             Get-ChildItem -Path "$gradleBase\daemon" -Filter "*.log" -Recurse -Force -ErrorAction SilentlyContinue |
-                Remove-Item -Force -ErrorAction SilentlyContinue
+            Remove-Item -Force -ErrorAction SilentlyContinue
         }
     }
 
     # 3. Android Studio Logs and Tmp (7+ days)
     Get-ChildItem "$env:LOCALAPPDATA\Google" -Directory -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -like "AndroidStudio*" } |
-        ForEach-Object {
-            $asFolder = $_.FullName
-            Log "       Cleaning logs/tmp for $($_.Name)..." "DarkGray"
+    Where-Object { $_.Name -like "AndroidStudio*" } |
+    ForEach-Object {
+        $asFolder = $_.FullName
+        Log "       Cleaning logs/tmp for $($_.Name)..." "DarkGray"
             
-            # Logs
-            if (Test-Path "$asFolder\log") {
-                Get-ChildItem -Path "$asFolder\log" -File -ErrorAction SilentlyContinue |
-                    Where-Object { $_.LastWriteTime -lt $old7 } |
-                    Remove-Item -Force -ErrorAction SilentlyContinue
-            }
-            
-            # Tmp
-            if (Test-Path "$asFolder\tmp") {
-                Get-ChildItem -Path "$asFolder\tmp" -Recurse -Force -ErrorAction SilentlyContinue |
-                    Where-Object { $_.LastWriteTime -lt $old7 } |
-                    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-            }
+        # Logs
+        if (Test-Path "$asFolder\log") {
+            Get-ChildItem -Path "$asFolder\log" -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.LastWriteTime -lt $old7 } |
+            Remove-Item -Force -ErrorAction SilentlyContinue
         }
+            
+        # Tmp
+        if (Test-Path "$asFolder\tmp") {
+            Get-ChildItem -Path "$asFolder\tmp" -Recurse -Force -ErrorAction SilentlyContinue |
+            Where-Object { $_.LastWriteTime -lt $old7 } |
+            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
 
     # 4. Kotlin Compiler Cache
     $kotlinCache = "$env:LOCALAPPDATA\Kotlin\cache"
     if (Test-Path $kotlinCache) {
         Log "       Cleaning Kotlin compiler cache (30+ days)..." "DarkGray"
         Get-ChildItem -Path $kotlinCache -Recurse -ErrorAction SilentlyContinue |
-            Where-Object { $_.LastWriteTime -lt $old30 } |
-            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        Where-Object { $_.LastWriteTime -lt $old30 } |
+        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
     }
 
-    # 5. Project Build Folders
-    # Still useful to clean build folders, but we keep the current logic for these
-    $projectRoots = @(
-        "$env:USERPROFILE\AndroidStudioProjects",
-        "$env:USERPROFILE\Projects",
-        "$env:USERPROFILE\source"
-    )
-    foreach ($root in $projectRoots) {
-        if (Test-Path $root) {
-            Get-ChildItem -Path $root -Recurse -Directory -Filter "build" -ErrorAction SilentlyContinue |
-                Where-Object { Test-Path "$($_.FullName)\intermediates" } |
-                ForEach-Object {
-                    Remove-Item $_.FullName -Recurse -Force -ErrorAction SilentlyContinue
-                    Log "       Cleaned build folder: $($_.FullName)" "DarkGray"
-                }
-        }
-    }
 }
 
 # ─────────────────────────────────────────────
@@ -559,7 +557,7 @@ Run-Step "[Optional] Running CHKDSK disk health scan (read-only)..." {
 # ─────────────────────────────────────────────
 # Final: Measure disk space, save timestamp, show summary
 # ─────────────────────────────────────────────
-$diskAfter  = (Get-PSDrive -Name C).Free
+$diskAfter = (Get-PSDrive -Name C).Free
 $freedBytes = $diskAfter - $diskBefore
 
 (Get-Date).ToString('o') | Set-Content $timestampFile
@@ -576,10 +574,12 @@ Log "  Free after  : $([math]::Round($diskAfter / 1GB, 2)) GB" "Gray"
 if ($freedBytes -ge 1GB) {
     $freedGB = [math]::Round($freedBytes / 1GB, 2)
     Log "  Space freed : $freedGB GB" "Green"
-} elseif ($freedBytes -gt 0) {
+}
+elseif ($freedBytes -gt 0) {
     $freedMB = [math]::Round($freedBytes / 1MB, 1)
     Log "  Space freed : $freedMB MB" "Yellow"
-} else {
+}
+else {
     Log "  Space freed : 0 (no measurable change)" "DarkGray"
 }
 
