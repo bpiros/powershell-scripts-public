@@ -2,6 +2,12 @@
 # Saves last run timestamp and a detailed log for each run.
 # Run this script as Administrator.
 
+# --- Check for Administrator privileges ---
+if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    Write-Host "ERROR: This script must be run as Administrator." -ForegroundColor Red
+    exit 1
+}
+
 $scriptDir     = "$env:USERPROFILE\scripts\public"
 if (-not (Test-Path $scriptDir)) { New-Item -ItemType Directory -Path $scriptDir | Out-Null }
 
@@ -575,28 +581,6 @@ if ($freedBytes -ge 1GB) {
     Log "  Space freed : $freedMB MB" "Yellow"
 } else {
     Log "  Space freed : 0 (no measurable change)" "DarkGray"
-}
-
-# ─────────────────────────────────────────────
-# Top 10 largest folders on C:
-# ─────────────────────────────────────────────
-Log ""
-Log "============================================" "DarkCyan"
-Log "   TOP 10 LARGEST FOLDERS ON C:" "Cyan"
-Log "============================================" "DarkCyan"
-Log "  (Calculating — this may take a moment...)" "DarkGray"
-
-$topFolders = Get-ChildItem C:\ -Directory -ErrorAction SilentlyContinue |
-    ForEach-Object {
-        $size = (Get-ChildItem $_.FullName -Recurse -Force -ErrorAction SilentlyContinue |
-                 Measure-Object -Property Length -Sum).Sum
-        [PSCustomObject]@{ Folder = $_.FullName; SizeGB = [math]::Round($size / 1GB, 2) }
-    } |
-    Sort-Object SizeGB -Descending |
-    Select-Object -First 10
-
-foreach ($entry in $topFolders) {
-    Log ("  {0,-45} {1,8} GB" -f $entry.Folder, $entry.SizeGB) "Gray"
 }
 
 Log ""
