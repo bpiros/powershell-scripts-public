@@ -556,15 +556,21 @@ Run-Step "[11/12] Clearing browser caches..." {
     $browsers = @{
         "Google Chrome"   = @(
             "$env:LOCALAPPDATA\Google\Chrome\User Data\*\Cache\*",
-            "$env:LOCALAPPDATA\Google\Chrome\User Data\*\Code Cache\*"
+            "$env:LOCALAPPDATA\Google\Chrome\User Data\*\Code Cache\*",
+            "$env:LOCALAPPDATA\Google\Chrome\User Data\*\DawnCache\*",
+            "$env:LOCALAPPDATA\Google\Chrome\User Data\*\GPUCache\*"
         )
         "Microsoft Edge"  = @(
             "$env:LOCALAPPDATA\Microsoft\Edge\User Data\*\Cache\*",
-            "$env:LOCALAPPDATA\Microsoft\Edge\User Data\*\Code Cache\*"
+            "$env:LOCALAPPDATA\Microsoft\Edge\User Data\*\Code Cache\*",
+            "$env:LOCALAPPDATA\Microsoft\Edge\User Data\*\DawnCache\*",
+            "$env:LOCALAPPDATA\Microsoft\Edge\User Data\*\GPUCache\*"
         )
         "Brave"           = @(
             "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\User Data\*\Cache\*",
-            "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\User Data\*\Code Cache\*"
+            "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\User Data\*\Code Cache\*",
+            "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\User Data\*\DawnCache\*",
+            "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\User Data\*\GPUCache\*"
         )
         "Mozilla Firefox" = @(
             "$env:LOCALAPPDATA\Mozilla\Firefox\Profiles\*\cache2\entries\*",
