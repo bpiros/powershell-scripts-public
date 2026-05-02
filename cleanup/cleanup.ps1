@@ -169,7 +169,6 @@ Run-Step "[Pre] Creating System Restore Point..." {
 
 # ─────────────────────────────────────────────
 # STEP 1: Clear Temp folders (files older than 7 days) + empty folders
-#         Prefetch: only .pf files not accessed in the last 14 days
 # ─────────────────────────────────────────────
 Run-Step "[1/14] Clearing Temp folders (files older than 7 days) and empty folders..." {
 
@@ -177,7 +176,7 @@ Run-Step "[1/14] Clearing Temp folders (files older than 7 days) and empty folde
     $totalFolders = 0
     $totalBytes = 0
 
-    # --- Folders to scan recursively (Prefetch handled separately below) ---
+    # --- Folders to scan recursively ---
     $tempFolders = @(
         "$env:TEMP",
         "$SystemDrive\Windows\Temp",
@@ -244,42 +243,6 @@ Run-Step "[1/14] Clearing Temp folders (files older than 7 days) and empty folde
             Log "         Removing $emptyCount empty folder(s)..." "DarkGray"
             $emptyFolders | Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
         }
-    }
-
-    # --- Prefetch: only delete .pf files not accessed in the last 14 days ---
-    $prefetchPath = "$SystemDrive\Windows\Prefetch"
-    $prefetchThreshold = (Get-Date).AddDays(-14)
-
-    if (Test-Path $prefetchPath) {
-        Log "       Scanning: $prefetchPath (unused in last 14 days)" "DarkGray"
-
-        # Check if NTFS LastAccessTime updates are enabled on this system
-        $ntfsKey = (Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -ErrorAction SilentlyContinue).NtfsDisableLastAccessUpdate
-        if ($ntfsKey -ne 0) {
-            Log "       [WARN] LastAccessTime is disabled on this system — falling back to LastWriteTime for prefetch." "Yellow"
-            $pfFiles = Get-ChildItem -Path $prefetchPath -Filter "*.pf" -Force -ErrorAction SilentlyContinue |
-            Where-Object { $_.LastWriteTime -lt $prefetchThreshold }
-        }
-        else {
-            $pfFiles = Get-ChildItem -Path $prefetchPath -Filter "*.pf" -Force -ErrorAction SilentlyContinue |
-            Where-Object { $_.LastAccessTime -lt $prefetchThreshold }
-        }
-
-        if ($pfFiles) {
-            $pfCount = ($pfFiles | Measure-Object).Count
-            $pfBytes = ($pfFiles | Measure-Object -Property Length -Sum).Sum
-            $pfLabel = if ($pfBytes -ge 1GB) { "$([math]::Round($pfBytes/1GB,2)) GB" } else { "$([math]::Round($pfBytes/1MB,1)) MB" }
-            Log "         Found $pfCount unused prefetch file(s) ($pfLabel)" "DarkGray"
-            $pfFiles | Remove-Item -Force -ErrorAction SilentlyContinue
-            $totalFiles += $pfCount
-            $totalBytes += $pfBytes
-        }
-        else {
-            Log "         No prefetch files unused for 14+ days found." "DarkGray"
-        }
-    }
-    else {
-        Log "       [SKIP] Prefetch folder not found." "DarkGray"
     }
 
     # --- Handle .dmp crash dump files in $SystemDrive\Windows separately ---
