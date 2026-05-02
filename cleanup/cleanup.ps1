@@ -440,22 +440,13 @@ Run-Step "[6/12] Clearing developer tool caches..." {
     }
 
     # --- NuGet / .NET caches ---
-    $nugetFolders = @(
-        "$env:LOCALAPPDATA\NuGet\v3-cache",
-        "$env:USERPROFILE\.nuget\packages",
-        "$env:LOCALAPPDATA\Temp\NuGetScratch"
-    )
-    foreach ($folder in $nugetFolders) {
-        if (Test-Path $folder) {
-            Log "       [NuGet] found: $folder — cleaning (30+ days)..." "DarkGray"
-            if (-not $DryRun) {
-                $old30 = (Get-Date).AddDays(-30)
-                Get-ChildItem -Path $folder -Recurse -Force -ErrorAction SilentlyContinue |
-                Where-Object { $_.LastWriteTime -lt $old30 } |
-                Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-            }
-            else { Log "       [DRY RUN] Would clean NuGet folder: $folder (30+ days)." "Yellow" }
-        }
+    if (Get-Command dotnet -ErrorAction SilentlyContinue) {
+        Log "       [dotnet] found — clearing NuGet locals..." "DarkGray"
+        if (-not $DryRun) { dotnet nuget locals all --clear }
+        else { Log "       [DRY RUN] Would run: dotnet nuget locals all --clear" "Yellow" }
+    }
+    else {
+        Log "       [dotnet] not found — skipping NuGet cleanup." "DarkGray"
     }
 
     # --- Docker ---
@@ -628,20 +619,6 @@ Run-Step "[12/12] Surgical Android Studio and Gradle Cleanup..." {
     $gradleBase = "$env:USERPROFILE\.gradle"
     if (Test-Path $gradleBase) {
         Log "       Cleaning outdated Gradle components (30+ days)..." "DarkGray"
-        
-        # Clean old dependency caches (modules-2, transforms-3 are common growth points)
-        $cachePaths = @("$gradleBase\caches\modules-2", "$gradleBase\caches\transforms-3")
-        foreach ($path in $cachePaths) {
-            if (Test-Path $path) {
-                if (-not $DryRun) {
-                    Get-ChildItem -Path $path -Recurse -Force -ErrorAction SilentlyContinue |
-                    Where-Object { $_.LastWriteTime -lt $old30 } |
-                    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-                }
-                else { Log "       [DRY RUN] Would clean $path (30+ days)." "Yellow" }
-            }
-        }
-
         # Clean old Gradle distributions
         if (Test-Path "$gradleBase\wrapper\dists") {
             if (-not $DryRun) {
