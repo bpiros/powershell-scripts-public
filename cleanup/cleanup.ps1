@@ -42,6 +42,16 @@ function Run-Step {
     }
 }
 
+# --- Optional step prompt helper ---
+function Ask-Optional {
+    param([string]$question)
+    Write-Host ""
+    Write-Host "  $question" -ForegroundColor Yellow
+    Write-Host "  [Y] Yes   [N] No (default: N)" -ForegroundColor DarkGray
+    $ans = Read-Host "  Your choice"
+    return ($ans -match '^[Yy]')
+}
+
 # --- Measure C: drive free space BEFORE ---
 $diskBefore = (Get-PSDrive -Name C).Free
 
@@ -80,6 +90,23 @@ Log "  Starting cleanup at $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" "White"
 Log "  Free space on C: before: $([math]::Round($diskBefore / 1GB, 2)) GB" "Gray"
 Log "  Log file: $logFile" "DarkGray"
 Log "============================================" "DarkCyan"
+
+# ─────────────────────────────────────────────
+# Ask about optional steps upfront so the script can run unattended
+# ─────────────────────────────────────────────
+Write-Host ""
+Write-Host "  ══════════════════════════════════════════" -ForegroundColor DarkCyan
+Write-Host "   OPTIONAL STEPS — answer before we start" -ForegroundColor Cyan
+Write-Host "  ══════════════════════════════════════════" -ForegroundColor DarkCyan
+
+$runSfc      = Ask-Optional "[Optional A] Run System File Checker (sfc /scannow)?  [slow — ~10-30 min]"
+$runDism     = Ask-Optional "[Optional B] Run DISM RestoreHealth + ComponentCleanup?  [slow — ~20-60 min]"
+$runChkdsk   = Ask-Optional "[Optional C] Run CHKDSK read-only disk health scan?"
+$removeWinOld = Ask-Optional "[Optional D] Remove Windows.old folder?  [IRREVERSIBLE — cannot roll back Windows version]"
+
+Write-Host ""
+Write-Host "  Choices recorded. Starting cleanup now..." -ForegroundColor Green
+Write-Host "  ══════════════════════════════════════════" -ForegroundColor DarkCyan
 
 # ─────────────────────────────────────────────
 # PRE-STEP: Create a System Restore Point
@@ -317,33 +344,11 @@ Run-Step "[6/14] Clearing developer tool caches..." {
 }
 
 # ─────────────────────────────────────────────
-# STEP 7: SFC - System File Checker
-# ─────────────────────────────────────────────
-Run-Step "[7/14] Running System File Checker (sfc /scannow)..." {
-    Log "       This may take several minutes..." "DarkGray"
-    sfc /scannow
-    if ($LASTEXITCODE -ne 0) { Log "       SFC exited with code $LASTEXITCODE — review the log." "Yellow" }
-}
-
-# ─────────────────────────────────────────────
-# STEP 8: DISM - Repair and Cleanup
-# /ResetBase removed — it is irreversible and too destructive for routine use.
-# Run it manually only if you need maximum space and your system is stable.
-# ─────────────────────────────────────────────
-Run-Step "[8/14] Running DISM RestoreHealth + ComponentCleanup..." {
-    Log "       This may take several minutes..." "DarkGray"
-    dism /Online /Cleanup-Image /RestoreHealth
-    if ($LASTEXITCODE -ne 0) { Log "       DISM RestoreHealth exited with code $LASTEXITCODE — review the log." "Yellow" }
-    dism /Online /Cleanup-Image /StartComponentCleanup
-    if ($LASTEXITCODE -ne 0) { Log "       DISM ComponentCleanup exited with code $LASTEXITCODE — review the log." "Yellow" }
-}
-
-# ─────────────────────────────────────────────
-# STEP 9: Clear selected low-value Windows Event Logs
+# STEP 7: Clear selected low-value Windows Event Logs
 # Only a targeted list is cleared — full log history is preserved for
 # troubleshooting crashes, security audits, and update failures.
 # ─────────────────────────────────────────────
-Run-Step "[9/14] Clearing selected low-value Windows Event Logs..." {
+Run-Step "[7/12] Clearing selected low-value Windows Event Logs..." {
     $logsToClear = @(
         "Microsoft-Windows-Diagnostics-Performance/Operational",
         "Microsoft-Windows-ResourceExhaustion-Detector/Operational",
@@ -359,28 +364,28 @@ Run-Step "[9/14] Clearing selected low-value Windows Event Logs..." {
 }
 
 # ─────────────────────────────────────────────
-# STEP 10: Clear DNS Cache
+# STEP 8: Clear DNS Cache
 # ─────────────────────────────────────────────
-Run-Step "[10/14] Flushing DNS cache..." {
+Run-Step "[8/12] Flushing DNS cache..." {
     Clear-DnsClientCache
 }
 
 # ─────────────────────────────────────────────
-# STEP 11: Clear Windows Store cache
+# STEP 9: Clear Windows Store cache
 # wsreset.exe spawns a child process and returns immediately, so -Wait
 # only catches the launcher exit. A Sleep buffer is used instead.
 # ─────────────────────────────────────────────
-Run-Step "[11/14] Clearing Windows Store cache (wsreset)..." {
+Run-Step "[9/12] Clearing Windows Store cache (wsreset)..." {
     Start-Process wsreset.exe
     Log "       Waiting 15 seconds for wsreset to complete..." "DarkGray"
     Start-Sleep -Seconds 15
 }
 
 # ─────────────────────────────────────────────
-# STEP 12: Flush thumbnail and font caches
+# STEP 10: Flush thumbnail and font caches
 # Uses ie4uinit.exe to refresh icon/thumb caches without killing Explorer.
 # ─────────────────────────────────────────────
-Run-Step "[12/14] Flushing thumbnail and font caches..." {
+Run-Step "[10/12] Flushing thumbnail and font caches..." {
     # Thumbnail/Icon cache (non-destructive refresh)
     Log "       Refreshing icon and thumbnail cache..." "DarkGray"
     if (Test-Path "$env:WinDir\System32\ie4uinit.exe") {
@@ -395,10 +400,10 @@ Run-Step "[12/14] Flushing thumbnail and font caches..." {
 }
 
 # ─────────────────────────────────────────────
-# STEP 13: Clear browser caches
+# STEP 11: Clear browser caches
 # Skips any browser that is currently running to avoid session corruption.
 # ─────────────────────────────────────────────
-Run-Step "[13/14] Clearing browser caches..." {
+Run-Step "[11/12] Clearing browser caches..." {
     $browsers = @{
         "Google Chrome"   = @(
             "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\Cache\*",
@@ -450,11 +455,11 @@ Run-Step "[13/14] Clearing browser caches..." {
 }
 
 # ─────────────────────────────────────────────
-# STEP 14: Surgical Android Studio and Gradle Cleanup
+# STEP 12: Surgical Android Studio and Gradle Cleanup
 # Removes outdated logs and caches (older than 7-30 days)
 # while keeping active dependencies and recent distributions.
 # ─────────────────────────────────────────────
-Run-Step "[14/14] Surgical Android Studio and Gradle Cleanup..." {
+Run-Step "[12/12] Surgical Android Studio and Gradle Cleanup..." {
     # 1. Stop Android Studio and Gradle Daemons
     Log "       Stopping Android Studio and Gradle processes..." "DarkGray"
     Get-Process -Name "studio64", "studio" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
@@ -530,29 +535,66 @@ Run-Step "[14/14] Surgical Android Studio and Gradle Cleanup..." {
 }
 
 # ─────────────────────────────────────────────
-# Optional: CHKDSK scan (read-only, no changes)
+# Optional A: SFC - System File Checker
 # ─────────────────────────────────────────────
-Run-Step "[Optional] Running CHKDSK disk health scan (read-only)..." {
-    Log "       This is a read-only scan — no changes will be made." "DarkGray"
-    chkdsk C: /scan
-    if ($LASTEXITCODE -ne 0) { Log "       CHKDSK exited with code $LASTEXITCODE — review the log." "Yellow" }
+if ($runSfc) {
+    Run-Step "[Optional A] Running System File Checker (sfc /scannow)..." {
+        Log "       This may take several minutes..." "DarkGray"
+        sfc /scannow
+        if ($LASTEXITCODE -ne 0) { Log "       SFC exited with code $LASTEXITCODE — review the log." "Yellow" }
+    }
+}
+else {
+    Log ""
+    Log "[Optional A] SFC — skipped by user." "DarkGray"
 }
 
 # ─────────────────────────────────────────────
-# Optional: Remove Windows.old folder
-# Set $removeWindowsOld = $true to enable.
-# WARNING: This is IRREVERSIBLE — you will no longer be able to roll back
-# your Windows version after enabling this.
+# Optional B: DISM - Repair and Cleanup
+# /ResetBase omitted — irreversible and too destructive for routine use.
 # ─────────────────────────────────────────────
-# $removeWindowsOld = $false
-# if ($removeWindowsOld) {
-#    Run-Step "[Optional] Removing Windows.old folder..." {
-#         Remove-Item "C:\Windows.old" -Recurse -Force -ErrorAction SilentlyContinue
-#     }
-# } else {
-#     Log ""
-#     Log "[Optional] Removing Windows.old — SKIPPED (set `$removeWindowsOld = `$true to enable)" "DarkGray"
-# }
+if ($runDism) {
+    Run-Step "[Optional B] Running DISM RestoreHealth + ComponentCleanup..." {
+        Log "       This may take several minutes..." "DarkGray"
+        dism /Online /Cleanup-Image /RestoreHealth
+        if ($LASTEXITCODE -ne 0) { Log "       DISM RestoreHealth exited with code $LASTEXITCODE — review the log." "Yellow" }
+        dism /Online /Cleanup-Image /StartComponentCleanup
+        if ($LASTEXITCODE -ne 0) { Log "       DISM ComponentCleanup exited with code $LASTEXITCODE — review the log." "Yellow" }
+    }
+}
+else {
+    Log ""
+    Log "[Optional B] DISM — skipped by user." "DarkGray"
+}
+
+# ─────────────────────────────────────────────
+# Optional C: CHKDSK scan (read-only, no changes)
+# ─────────────────────────────────────────────
+if ($runChkdsk) {
+    Run-Step "[Optional C] Running CHKDSK disk health scan (read-only)..." {
+        Log "       This is a read-only scan — no changes will be made." "DarkGray"
+        chkdsk C: /scan
+        if ($LASTEXITCODE -ne 0) { Log "       CHKDSK exited with code $LASTEXITCODE — review the log." "Yellow" }
+    }
+}
+else {
+    Log ""
+    Log "[Optional C] CHKDSK — skipped by user." "DarkGray"
+}
+
+# ─────────────────────────────────────────────
+# Optional D: Remove Windows.old folder
+# WARNING: IRREVERSIBLE — cannot roll back Windows version after this.
+# ─────────────────────────────────────────────
+if ($removeWinOld) {
+    Run-Step "[Optional D] Removing Windows.old folder..." {
+        Remove-Item "C:\Windows.old" -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+else {
+    Log ""
+    Log "[Optional D] Windows.old removal — skipped by user." "DarkGray"
+}
 
 # ─────────────────────────────────────────────
 # Final: Measure disk space, save timestamp, show summary
