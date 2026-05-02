@@ -442,16 +442,16 @@ Run-Step "[10/12] Flushing thumbnail and font caches..." {
 Run-Step "[11/12] Clearing browser caches..." {
     $browsers = @{
         "Google Chrome"   = @(
-            "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\Cache\*",
-            "$env:LOCALAPPDATA\Google\Chrome\User Data\Default\Code Cache\*"
+            "$env:LOCALAPPDATA\Google\Chrome\User Data\*\Cache\*",
+            "$env:LOCALAPPDATA\Google\Chrome\User Data\*\Code Cache\*"
         )
         "Microsoft Edge"  = @(
-            "$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default\Cache\*",
-            "$env:LOCALAPPDATA\Microsoft\Edge\User Data\Default\Code Cache\*"
+            "$env:LOCALAPPDATA\Microsoft\Edge\User Data\*\Cache\*",
+            "$env:LOCALAPPDATA\Microsoft\Edge\User Data\*\Code Cache\*"
         )
         "Brave"           = @(
-            "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\User Data\Default\Cache\*",
-            "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\User Data\Default\Code Cache\*"
+            "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\User Data\*\Cache\*",
+            "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\User Data\*\Code Cache\*"
         )
         "Mozilla Firefox" = @(
             "$env:LOCALAPPDATA\Mozilla\Firefox\Profiles\*\cache2\entries\*",
