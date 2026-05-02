@@ -274,10 +274,18 @@ Run-Step "[1/12] Clearing Temp folders (files older than 7 days) and empty folde
 
 # ─────────────────────────────────────────────
 # STEP 2: Auto-configure and run Disk Cleanup (cleanmgr)
-# -Wait ensures cleanmgr finishes before the next step begins.
 # StateFlags9901 is used to avoid collisions with other tools using profile 1.
+# cleanmgr is launched with PassThru so we can enforce a 5-minute timeout —
+# the /sagerun flag skips the drive-selection GUI, but a timeout guards against
+# unexpected hangs. cleanmgr is not present on Windows Server; the step is skipped.
 # ─────────────────────────────────────────────
 Run-Step "[2/12] Configuring and running Disk Cleanup (cleanmgr)..." {
+    $cleanmgrPath = "$env:SystemRoot\System32\cleanmgr.exe"
+    if (-not (Test-Path $cleanmgrPath)) {
+        Log "       [SKIP] cleanmgr.exe not found (not available on this edition)." "DarkGray"
+        return
+    }
+
     $volCaches = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches'
     $categories = @(
         'Temporary Files',
@@ -292,10 +300,22 @@ Run-Step "[2/12] Configuring and running Disk Cleanup (cleanmgr)..." {
     foreach ($cat in $categories) {
         $path = Join-Path $volCaches $cat
         if (Test-Path $path) {
-            Set-ItemProperty -Path $path -Name 'StateFlags9901' -Value 2 -Type DWord -Force
+            Set-ItemProperty -Path $path -Name 'StateFlags9901' -Value 2 -Type DWord -Force -ErrorAction SilentlyContinue
         }
     }
-    Start-Process cleanmgr -ArgumentList "/sagerun:9901" -Wait -NoNewWindow
+
+    Log "       Launching cleanmgr /sagerun:9901 (timeout: 5 min)..." "DarkGray"
+    $proc = Start-Process -FilePath $cleanmgrPath -ArgumentList "/sagerun:9901" -PassThru -ErrorAction Stop
+
+    $timeoutSec = 300
+    $finished = $proc.WaitForExit($timeoutSec * 1000)
+    if ($finished) {
+        Log "       cleanmgr completed (exit code: $($proc.ExitCode))." "DarkGray"
+    }
+    else {
+        $proc.Kill()
+        Log "       [WARN] cleanmgr did not finish within $timeoutSec seconds and was terminated." "Yellow"
+    }
 }
 
 # ─────────────────────────────────────────────
