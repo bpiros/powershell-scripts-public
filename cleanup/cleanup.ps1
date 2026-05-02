@@ -680,6 +680,10 @@ elseif ($freedBytes -gt 0) {
     $freedMB = [math]::Round($freedBytes / 1MB, 1)
     Log "  Space freed : $freedMB MB" "Yellow"
 }
+elseif ($freedBytes -lt 0) {
+    $usedMB = [math]::Round([math]::Abs($freedBytes) / 1MB, 1)
+    Log "  Space freed : -$usedMB MB (disk usage increased — other processes may have written data during cleanup)" "Yellow"
+}
 else {
     Log "  Space freed : 0 (no measurable change)" "DarkGray"
 }
