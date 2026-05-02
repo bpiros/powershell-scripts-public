@@ -364,22 +364,17 @@ Run-Step "[12/15] Clearing Windows Store cache (wsreset)..." {
 
 # ─────────────────────────────────────────────
 # STEP 13: Flush thumbnail and font caches
-# Explorer is verified to have restarted after being killed.
+# Uses ie4uinit.exe to refresh icon/thumb caches without killing Explorer.
 # ─────────────────────────────────────────────
 Run-Step "[13/15] Flushing thumbnail and font caches..." {
-    # Thumbnail cache
-    Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 3
-    Remove-Item "$env:LOCALAPPDATA\Microsoft\Windows\Explorer\thumbcache_*.db" -Force -ErrorAction SilentlyContinue
-    # Verify Explorer restarted; force-launch if it didn't
-    if (-not (Get-Process explorer -ErrorAction SilentlyContinue)) {
-        Start-Process explorer
-        Start-Sleep -Seconds 2
-        Log "       Explorer restarted manually." "DarkGray"
-    } else {
-        Log "       Explorer is running." "DarkGray"
+    # Thumbnail/Icon cache (non-destructive refresh)
+    Log "       Refreshing icon and thumbnail cache..." "DarkGray"
+    if (Test-Path "$env:WinDir\System32\ie4uinit.exe") {
+        Start-Process "ie4uinit.exe" -ArgumentList "-show" -Wait
     }
-    # Font cache
+
+    # Font cache (standard service-based flush)
+    Log "       Flushing font cache..." "DarkGray"
     Stop-Service -Name "FontCache" -Force -ErrorAction SilentlyContinue
     Remove-Item "$env:WinDir\ServiceProfiles\LocalService\AppData\Local\FontCache\*" -Force -ErrorAction SilentlyContinue
     Start-Service -Name "FontCache" -ErrorAction SilentlyContinue
