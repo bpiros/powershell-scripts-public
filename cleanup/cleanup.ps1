@@ -83,22 +83,32 @@ $diskBefore = (Get-PSDrive -Name ($SystemDrive -replace ':', '')).Free
 # --- Show last run info ---
 if (Test-Path $timestampFile) {
     $lastRun = Get-Content $timestampFile
-    $lastRunDate = [datetime]$lastRun
-    $daysSince = [math]::Floor((Get-Date - $lastRunDate).TotalDays)
-    Log ""
-    Log "============================================" "DarkCyan"
-    Log "   SYSTEM CLEANUP SCRIPT" "Cyan"
-    Log "============================================" "DarkCyan"
-    Log ""
-    Log "  Last run : $($lastRunDate.ToString('yyyy-MM-dd HH:mm'))" "Gray"
-    if ($daysSince -gt 30) {
-        Log "  Days ago : $daysSince day(s)  [Overdue!]" "Red"
-    }
-    elseif ($daysSince -gt 14) {
-        Log "  Days ago : $daysSince day(s)" "Yellow"
+    $lastRunDate = [datetime]::MinValue
+    if ([datetime]::TryParse($lastRun, [ref]$lastRunDate)) {
+        $daysSince = [math]::Floor((Get-Date - $lastRunDate).TotalDays)
+        Log ""
+        Log "============================================" "DarkCyan"
+        Log "   SYSTEM CLEANUP SCRIPT" "Cyan"
+        Log "============================================" "DarkCyan"
+        Log ""
+        Log "  Last run : $($lastRunDate.ToString('yyyy-MM-dd HH:mm'))" "Gray"
+        if ($daysSince -gt 30) {
+            Log "  Days ago : $daysSince day(s)  [Overdue!]" "Red"
+        }
+        elseif ($daysSince -gt 14) {
+            Log "  Days ago : $daysSince day(s)" "Yellow"
+        }
+        else {
+            Log "  Days ago : $daysSince day(s)" "Green"
+        }
     }
     else {
-        Log "  Days ago : $daysSince day(s)" "Green"
+        Log ""
+        Log "============================================" "DarkCyan"
+        Log "   SYSTEM CLEANUP SCRIPT" "Cyan"
+        Log "============================================" "DarkCyan"
+        Log ""
+        Log "  Last run : Invalid or corrupted timestamp" "Yellow"
     }
 }
 else {
@@ -267,8 +277,8 @@ Run-Step "[1/12] Clearing Temp folders (files older than 7 days) and empty folde
             if (-not $DryRun) {
                 $files | ForEach-Object {
                     $len = $_.Length
-                    Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
-                    if (-not (Test-Path $_.FullName)) {
+                    Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue
+                    if (-not (Test-Path -LiteralPath $_.FullName)) {
                         $totalFiles++
                         $totalBytes += $len
                     }
@@ -289,10 +299,11 @@ Run-Step "[1/12] Clearing Temp folders (files older than 7 days) and empty folde
             $allDirs |
             Sort-Object { ($_.FullName -split '\\').Count } -Descending |
             ForEach-Object {
-                if (([System.IO.Directory]::GetFileSystemEntries($_.FullName)).Count -eq 0) {
+                $hasItems = Get-ChildItem -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue | Select-Object -First 1
+                if (-not $hasItems) {
                     if (-not $DryRun) { 
-                        Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue 
-                        if (-not (Test-Path $_.FullName)) { $totalFolders++ }
+                        Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue 
+                        if (-not (Test-Path -LiteralPath $_.FullName)) { $totalFolders++ }
                     }
                     else { $totalFolders++ }
                 }
@@ -314,8 +325,8 @@ Run-Step "[1/12] Clearing Temp folders (files older than 7 days) and empty folde
         if (-not $DryRun) {
             $dmpFiles | ForEach-Object {
                 $len = $_.Length
-                Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
-                if (-not (Test-Path $_.FullName)) {
+                Remove-Item -LiteralPath $_.FullName -Force -ErrorAction SilentlyContinue
+                if (-not (Test-Path -LiteralPath $_.FullName)) {
                     $totalFiles++
                     $totalBytes += $len
                 }
@@ -354,7 +365,7 @@ Run-Step "[2/12] Configuring and running Disk Cleanup (cleanmgr)..." {
         return
     }
 
-    $sageProfile = Get-Random -Minimum 8000 -Maximum 9999
+    $sageProfile = Get-Random -Minimum 8000 -Maximum 10000
     $flagName = "StateFlags$sageProfile"
     $volCaches = 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\VolumeCaches'
     $categories = @(
@@ -435,7 +446,10 @@ Run-Step "[3/12] Clearing Windows Update download cache..." {
     }
 
     Log "       Stopping Windows Update, BITS, and Delivery Optimization services..." "DarkGray"
-    if (-not $DryRun) { Stop-Service -Name wuauserv, BITS, DoSvc -Force -ErrorAction SilentlyContinue }
+    if (-not $DryRun) { 
+        Stop-Service -Name wuauserv, BITS, DoSvc -Force -ErrorAction SilentlyContinue 
+        Start-Sleep -Seconds 2
+    }
     try {
         if (-not $DryRun) { Remove-Item -Path "$SystemDrive\Windows\SoftwareDistribution\Download\*" -Recurse -Force -ErrorAction SilentlyContinue }
         else { Log "       [DRY RUN] Would clear SoftwareDistribution\Download cache." "Yellow" }
@@ -611,12 +625,6 @@ Run-Step "[11/12] Clearing browser caches..." {
             "$env:LOCALAPPDATA\Mozilla\Firefox\Profiles\*\cache2\doomed\*"
         )
     }
-    $browserExePaths = @{
-        "Google Chrome"   = "$SystemDrive\Program Files\Google\Chrome\Application\chrome.exe"
-        "Microsoft Edge"  = "$SystemDrive\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
-        "Brave"           = "$SystemDrive\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe"
-        "Mozilla Firefox" = "$SystemDrive\Program Files\Mozilla Firefox\firefox.exe"
-    }
     $browserProcessNames = @{
         "Google Chrome"   = "chrome"
         "Microsoft Edge"  = "msedge"
@@ -624,13 +632,23 @@ Run-Step "[11/12] Clearing browser caches..." {
         "Mozilla Firefox" = "firefox"
     }
     foreach ($browser in $browsers.Keys) {
-        $exePath = $browserExePaths[$browser]
         $processName = $browserProcessNames[$browser]
-        if (Test-Path $exePath) {
-            if (Get-Process -Name $processName -ErrorAction SilentlyContinue) {
-                Log "       [$browser] is currently running — skipping to avoid session corruption." "Yellow"
-                continue
+        
+        if (Get-Process -Name $processName -ErrorAction SilentlyContinue) {
+            Log "       [$browser] is currently running — skipping to avoid session corruption." "Yellow"
+            continue
+        }
+
+        # Check if any cache paths actually exist before logging "found"
+        $cacheExists = $false
+        foreach ($cachePath in $browsers[$browser]) {
+            if (Test-Path $cachePath) {
+                $cacheExists = $true
+                break
             }
+        }
+
+        if ($cacheExists) {
             Log "       [$browser] found — clearing cache..." "DarkGray"
             foreach ($cachePath in $browsers[$browser]) {
                 if (-not $DryRun) { Remove-Item -Path $cachePath -Recurse -Force -ErrorAction SilentlyContinue }
