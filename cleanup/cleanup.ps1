@@ -2,7 +2,7 @@
 # Saves last run timestamp and a detailed log for each run.
 # Run this script as Administrator.
 
-$scriptDir     = "$env:USERPROFILE\scripts"
+$scriptDir     = "$env:USERPROFILE\scripts\public"
 if (-not (Test-Path $scriptDir)) { New-Item -ItemType Directory -Path $scriptDir | Out-Null }
 
 # --- Keep only the last 10 logs ---
