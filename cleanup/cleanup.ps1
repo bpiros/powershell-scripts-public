@@ -43,16 +43,21 @@ function Run-Step {
     param([string]$label, [scriptblock]$action)
     Log ""
     Log $label "Cyan"
+
+    $stepStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+
     # Promote non-terminating errors to terminating so the catch block fires.
     # Cmdlets that explicitly pass -ErrorAction SilentlyContinue are unaffected —
     # a per-call parameter always overrides the preference variable.
     $ErrorActionPreference = 'Stop'
     try {
         & $action
-        Log "       Done." "Green"
+        $stepStopwatch.Stop()
+        Log "       Done. [$($stepStopwatch.Elapsed.ToString('hh\:mm\:ss'))]" "Green"
     }
     catch {
-        Log "       ERROR: $_" "Red"
+        $stepStopwatch.Stop()
+        Log "       ERROR: $_ (After $($stepStopwatch.Elapsed.ToString('hh\:mm\:ss')))" "Red"
     }
 }
 
