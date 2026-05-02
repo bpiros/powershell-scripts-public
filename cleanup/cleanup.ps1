@@ -9,6 +9,8 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 }
 
 $scriptDir = "$env:USERPROFILE\scripts\public"
+$SystemDrive = "C:"
+
 if (-not (Test-Path $scriptDir)) { New-Item -ItemType Directory -Path $scriptDir | Out-Null }
 
 # --- Keep only the last 10 logs ---
@@ -52,8 +54,8 @@ function Ask-Optional {
     return ($ans -match '^[Yy]')
 }
 
-# --- Measure C: drive free space BEFORE ---
-$diskBefore = (Get-PSDrive -Name C).Free
+# --- Measure $SystemDrive drive free space BEFORE ---
+$diskBefore = (Get-PSDrive -Name ($SystemDrive -replace ':', '')).Free
 
 # --- Show last run info ---
 if (Test-Path $timestampFile) {
@@ -87,7 +89,7 @@ else {
 
 Log ""
 Log "  Starting cleanup at $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" "White"
-Log "  Free space on C: before: $([math]::Round($diskBefore / 1GB, 2)) GB" "Gray"
+Log "  Free space on $SystemDrive before: $([math]::Round($diskBefore / 1GB, 2)) GB" "Gray"
 Log "  Log file: $logFile" "DarkGray"
 Log "============================================" "DarkCyan"
 
@@ -178,18 +180,18 @@ Run-Step "[1/14] Clearing Temp folders (files older than 7 days) and empty folde
     # --- Folders to scan recursively (Prefetch handled separately below) ---
     $tempFolders = @(
         "$env:TEMP",
-        "C:\Windows\Temp",
-        "C:\Windows\Logs\CBS",
-        "C:\Windows\Logs\DISM",
-        "C:\ProgramData\Microsoft\Windows\WER\ReportQueue"
+        "$SystemDrive\Windows\Temp",
+        "$SystemDrive\Windows\Logs\CBS",
+        "$SystemDrive\Windows\Logs\DISM",
+        "$SystemDrive\ProgramData\Microsoft\Windows\WER\ReportQueue"
     )
 
     # --- Wildcard user profile folders (resolved per user on the machine) ---
     $userFolders = @(
-        "C:\Users\*\AppData\Local\Temp",
-        "C:\Users\*\AppData\Local\Microsoft\Windows\INetCookies",
-        "C:\Users\*\AppData\Local\CrashDumps",
-        "C:\Users\*\AppData\Local\Microsoft\Windows\WER"
+        "$SystemDrive\Users\*\AppData\Local\Temp",
+        "$SystemDrive\Users\*\AppData\Local\Microsoft\Windows\INetCookies",
+        "$SystemDrive\Users\*\AppData\Local\CrashDumps",
+        "$SystemDrive\Users\*\AppData\Local\Microsoft\Windows\WER"
     )
 
     # Resolve wildcard user paths into real paths
@@ -245,7 +247,7 @@ Run-Step "[1/14] Clearing Temp folders (files older than 7 days) and empty folde
     }
 
     # --- Prefetch: only delete .pf files not accessed in the last 14 days ---
-    $prefetchPath = "C:\Windows\Prefetch"
+    $prefetchPath = "$SystemDrive\Windows\Prefetch"
     $prefetchThreshold = (Get-Date).AddDays(-14)
 
     if (Test-Path $prefetchPath) {
@@ -280,9 +282,9 @@ Run-Step "[1/14] Clearing Temp folders (files older than 7 days) and empty folde
         Log "       [SKIP] Prefetch folder not found." "DarkGray"
     }
 
-    # --- Handle .dmp crash dump files in C:\Windows separately ---
-    Log "       Scanning: C:\Windows (*.dmp files only)" "DarkGray"
-    $dmpFiles = Get-ChildItem -Path "C:\Windows" -Filter "*.dmp" -Force -ErrorAction SilentlyContinue |
+    # --- Handle .dmp crash dump files in $SystemDrive\Windows separately ---
+    Log "       Scanning: $SystemDrive\Windows (*.dmp files only)" "DarkGray"
+    $dmpFiles = Get-ChildItem -Path "$SystemDrive\Windows" -Filter "*.dmp" -Force -ErrorAction SilentlyContinue |
     Where-Object { $_.LastWriteTime -lt $ageThreshold }
 
     if ($dmpFiles) {
@@ -339,7 +341,7 @@ Run-Step "[3/14] Clearing Windows Update download cache..." {
     Log "       Stopping Windows Update, BITS, and Delivery Optimization services..." "DarkGray"
     Stop-Service -Name wuauserv, BITS, DoSvc -Force -ErrorAction SilentlyContinue
     try {
-        Remove-Item -Path "C:\Windows\SoftwareDistribution\Download\*" -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item -Path "$SystemDrive\Windows\SoftwareDistribution\Download\*" -Recurse -Force -ErrorAction SilentlyContinue
     }
     finally {
         Log "       Restarting Windows Update, BITS, and Delivery Optimization services..." "DarkGray"
@@ -468,10 +470,10 @@ Run-Step "[11/12] Clearing browser caches..." {
         )
     }
     $browserExePaths = @{
-        "Google Chrome"   = "C:\Program Files\Google\Chrome\Application\chrome.exe"
-        "Microsoft Edge"  = "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
-        "Brave"           = "C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe"
-        "Mozilla Firefox" = "C:\Program Files\Mozilla Firefox\firefox.exe"
+        "Google Chrome"   = "$SystemDrive\Program Files\Google\Chrome\Application\chrome.exe"
+        "Microsoft Edge"  = "$SystemDrive\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
+        "Brave"           = "$SystemDrive\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe"
+        "Mozilla Firefox" = "$SystemDrive\Program Files\Mozilla Firefox\firefox.exe"
     }
     $browserProcessNames = @{
         "Google Chrome"   = "chrome"
@@ -618,7 +620,7 @@ else {
 if ($runChkdsk) {
     Run-Step "[Optional C] Running CHKDSK disk health scan (read-only)..." {
         Log "       This is a read-only scan — no changes will be made." "DarkGray"
-        chkdsk C: /scan
+        chkdsk $SystemDrive /scan
         if ($LASTEXITCODE -ne 0) { Log "       CHKDSK exited with code $LASTEXITCODE — review the log." "Yellow" }
     }
 }
@@ -633,7 +635,7 @@ else {
 # ─────────────────────────────────────────────
 if ($removeWinOld) {
     Run-Step "[Optional D] Removing Windows.old folder..." {
-        Remove-Item "C:\Windows.old" -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item "$SystemDrive\Windows.old" -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
 else {
@@ -644,7 +646,7 @@ else {
 # ─────────────────────────────────────────────
 # Final: Measure disk space, save timestamp, show summary
 # ─────────────────────────────────────────────
-$diskAfter = (Get-PSDrive -Name C).Free
+$diskAfter = (Get-PSDrive -Name ($SystemDrive -replace ':', '')).Free
 $freedBytes = $diskAfter - $diskBefore
 
 (Get-Date).ToString('o') | Set-Content $timestampFile
