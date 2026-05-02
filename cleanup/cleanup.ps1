@@ -131,12 +131,13 @@ $runSfc      = Ask-Optional "[Optional A] Run System File Checker (sfc /scannow)
 $runDism     = Ask-Optional "[Optional B] Run DISM RestoreHealth + ComponentCleanup?  [slow — ~20-60 min]"
 $runChkdsk   = Ask-Optional "[Optional C] Run CHKDSK read-only disk health scan?"
 $removeWinOld = Ask-Optional "[Optional D] Remove Windows.old folder?  [IRREVERSIBLE — cannot roll back Windows version]"
+$runDocker    = Ask-Optional "[Optional E] Prune unused Docker data? (Removes stopped containers and unused networks)"
 
 Write-Host ""
 Write-Host "  Choices recorded. Starting cleanup now..." -ForegroundColor Green
 Write-Host "  ══════════════════════════════════════════" -ForegroundColor DarkCyan
 
-Log "  Optional choices: SFC=$runSfc, DISM=$runDism, CHKDSK=$runChkdsk, Windows.old=$removeWinOld" "DarkGray"
+Log "  Optional choices: SFC=$runSfc, DISM=$runDism, CHKDSK=$runChkdsk, Windows.old=$removeWinOld, Docker=$runDocker" "DarkGray"
 
 $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
@@ -449,16 +450,7 @@ Run-Step "[6/12] Clearing developer tool caches..." {
         Log "       [dotnet] not found — skipping NuGet cleanup." "DarkGray"
     }
 
-    # --- Docker ---
-    if (Get-Command docker -ErrorAction SilentlyContinue) {
-        Log "       [Docker] found — pruning unused system data..." "DarkGray"
-        if (-not $DryRun) {
-            docker system prune -f
-        }
-        else {
-            Log "       [DRY RUN] Would run: docker system prune -f" "Yellow"
-        }
-    }
+
 }
 
 # ─────────────────────────────────────────────
@@ -748,6 +740,30 @@ if ($removeWinOld) {
 else {
     Log ""
     Log "[Optional D] Windows.old removal — skipped by user." "DarkGray"
+}
+
+# ─────────────────────────────────────────────
+# Optional E: Docker System Prune
+# ─────────────────────────────────────────────
+if ($runDocker) {
+    Run-Step "[Optional E] Pruning unused Docker data..." {
+        if (Get-Command docker -ErrorAction SilentlyContinue) {
+            Log "       Pruning unused Docker system data (containers, networks, dangling images)..." "DarkGray"
+            if (-not $DryRun) {
+                docker system prune -f
+            }
+            else {
+                Log "       [DRY RUN] Would run: docker system prune -f" "Yellow"
+            }
+        }
+        else {
+            Log "       [Docker] not found — skipping." "DarkGray"
+        }
+    }
+}
+else {
+    Log ""
+    Log "[Optional E] Docker cleanup — skipped by user." "DarkGray"
 }
 
 # ─────────────────────────────────────────────
