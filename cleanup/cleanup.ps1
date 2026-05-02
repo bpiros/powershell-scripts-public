@@ -115,9 +115,54 @@ Write-Host "  ══════════════════════
 # ─────────────────────────────────────────────
 Run-Step "[Pre] Creating System Restore Point..." {
     Log "       This may take a moment..." "DarkGray"
-    $restorePointDesc = "Pre-Cleanup $(Get-Date -Format 'yyyy-MM-dd HH:mm')"
-    Checkpoint-Computer -Description $restorePointDesc -RestorePointType MODIFY_SETTINGS -ErrorAction SilentlyContinue
-    Log "       Restore point created: $restorePointDesc" "DarkGray"
+
+    # --- Check how recent the last restore point is ---
+    $lastRP = Get-CimInstance -Namespace "root\default" -ClassName SystemRestore |
+        Sort-Object CreationTime -Descending |
+        Select-Object -First 1
+
+    if ($lastRP) {
+        $hoursSinceLast = [math]::Round(((Get-Date) - $lastRP.CreationTime).TotalHours, 1)
+        Log "       Most recent restore point: '$($lastRP.Description)' ($hoursSinceLast h ago)" "DarkGray"
+    }
+
+    # --- Temporarily disable the 24-hour frequency throttle ---
+    # Windows ignores Checkpoint-Computer if a restore point exists within the last 24 h.
+    # Setting SystemRestorePointCreationFrequency=0 bypasses this limit for this call only.
+    $rpFreqKey  = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore"
+    $rpFreqName = "SystemRestorePointCreationFrequency"
+    $originalFreq = (Get-ItemProperty -Path $rpFreqKey -Name $rpFreqName -ErrorAction SilentlyContinue).$rpFreqName
+
+    try {
+        Set-ItemProperty -Path $rpFreqKey -Name $rpFreqName -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
+
+        $restorePointDesc = "Pre-Cleanup $(Get-Date -Format 'yyyy-MM-dd HH:mm')"
+        Checkpoint-Computer -Description $restorePointDesc -RestorePointType MODIFY_SETTINGS -ErrorAction Stop
+
+        # Verify the point was actually created
+        $newRP = Get-CimInstance -Namespace "root\default" -ClassName SystemRestore |
+            Sort-Object CreationTime -Descending |
+            Select-Object -First 1
+        if ($newRP -and $newRP.Description -eq $restorePointDesc) {
+            Log "       Restore point created: $restorePointDesc" "Green"
+        }
+        else {
+            Log "       [WARN] Restore point may not have been created — verify in System Protection." "Yellow"
+        }
+    }
+    catch {
+        Log "       [WARN] Could not create restore point: $_" "Yellow"
+        Log "       Continuing without a restore point — proceed with caution." "Yellow"
+    }
+    finally {
+        # Restore the original frequency value (or remove the key if it didn't exist before)
+        if ($null -ne $originalFreq) {
+            Set-ItemProperty -Path $rpFreqKey -Name $rpFreqName -Value $originalFreq -Type DWord -Force -ErrorAction SilentlyContinue
+        }
+        else {
+            Remove-ItemProperty -Path $rpFreqKey -Name $rpFreqName -ErrorAction SilentlyContinue
+        }
+    }
 }
 
 # ─────────────────────────────────────────────
