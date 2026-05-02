@@ -607,10 +607,10 @@ Run-Step "[11/12] Clearing browser caches..." {
 # while keeping active dependencies and recent distributions.
 # ─────────────────────────────────────────────
 Run-Step "[12/12] Surgical Android Studio and Gradle Cleanup..." {
-    # 1. Stop Android Studio and Gradle Daemons
-    Log "       Stopping Android Studio processes..." "DarkGray"
-    if (-not $DryRun) {
-        Get-Process -Name "studio64", "studio" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    # 1. Check if Android Studio is running
+    if (Get-Process -Name "studio64", "studio" -ErrorAction SilentlyContinue) {
+        Log "       [Android Studio] is currently running — skipping to avoid workspace corruption." "Yellow"
+        return
     }
     
     if (Get-Command gradle -ErrorAction SilentlyContinue) {
