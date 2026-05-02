@@ -429,30 +429,85 @@ Run-Step "[13/14] Clearing browser caches..." {
 }
 
 # ─────────────────────────────────────────────
-# STEP 14: Clear Android Studio and Gradle caches
-# Only studio64/studio processes are killed — NOT generic java.exe,
-# which would terminate unrelated servers, games, or tools.
+# STEP 14: Surgical Android Studio and Gradle Cleanup
+# Removes outdated logs and caches (older than 7-30 days)
+# while keeping active dependencies and recent distributions.
 # ─────────────────────────────────────────────
-Run-Step "[14/14] Clearing Android Studio caches..." {
-    Get-Process -Name "studio64", "studio" -ErrorAction SilentlyContinue |
+Run-Step "[14/14] Surgical Android Studio and Gradle Cleanup..." {
+    # 1. Stop Android Studio and Gradle Daemons
+    Log "       Stopping Android Studio and Gradle processes..." "DarkGray"
+    Get-Process -Name "studio64", "studio" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    Get-Process -Name "java" -ErrorAction SilentlyContinue | 
+        Where-Object { $_.Path -like "*\.gradle\*" } | 
         Stop-Process -Force -ErrorAction SilentlyContinue
-    Start-Sleep -Seconds 5
+    Start-Sleep -Seconds 3
 
-    $gradlePaths = @(
-        "$env:USERPROFILE\.gradle\caches\*",
-        "$env:USERPROFILE\.gradle\wrapper\dists\*"
-    )
-    foreach ($path in $gradlePaths) {
-        Remove-Item -Path $path -Recurse -Force -ErrorAction SilentlyContinue
+    $now = Get-Date
+    $old30 = $now.AddDays(-30)
+    $old7  = $now.AddDays(-7)
+
+    # 2. Targeted Gradle Cleanup
+    $gradleBase = "$env:USERPROFILE\.gradle"
+    if (Test-Path $gradleBase) {
+        Log "       Cleaning outdated Gradle components (30+ days)..." "DarkGray"
+        
+        # Clean old dependency caches (modules-2, transforms-3 are common growth points)
+        $cachePaths = @("$gradleBase\caches\modules-2", "$gradleBase\caches\transforms-3")
+        foreach ($path in $cachePaths) {
+            if (Test-Path $path) {
+                Get-ChildItem -Path $path -Recurse -Force -ErrorAction SilentlyContinue |
+                    Where-Object { $_.LastWriteTime -lt $old30 } |
+                    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        # Clean old Gradle distributions
+        if (Test-Path "$gradleBase\wrapper\dists") {
+            Get-ChildItem -Path "$gradleBase\wrapper\dists" -Directory -ErrorAction SilentlyContinue |
+                Where-Object { $_.LastWriteTime -lt $old30 } |
+                Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        }
+
+        # Clear daemon logs entirely (they are just text logs)
+        if (Test-Path "$gradleBase\daemon") {
+            Get-ChildItem -Path "$gradleBase\daemon" -Filter "*.log" -Recurse -Force -ErrorAction SilentlyContinue |
+                Remove-Item -Force -ErrorAction SilentlyContinue
+        }
     }
 
+    # 3. Android Studio Logs and Tmp (7+ days)
     Get-ChildItem "$env:LOCALAPPDATA\Google" -Directory -ErrorAction SilentlyContinue |
         Where-Object { $_.Name -like "AndroidStudio*" } |
         ForEach-Object {
-            Remove-Item "$($_.FullName)\caches\*" -Recurse -Force -ErrorAction SilentlyContinue
-            Remove-Item "$($_.FullName)\tmp\*" -Recurse -Force -ErrorAction SilentlyContinue
+            $asFolder = $_.FullName
+            Log "       Cleaning logs/tmp for $($_.Name)..." "DarkGray"
+            
+            # Logs
+            if (Test-Path "$asFolder\log") {
+                Get-ChildItem -Path "$asFolder\log" -File -ErrorAction SilentlyContinue |
+                    Where-Object { $_.LastWriteTime -lt $old7 } |
+                    Remove-Item -Force -ErrorAction SilentlyContinue
+            }
+            
+            # Tmp
+            if (Test-Path "$asFolder\tmp") {
+                Get-ChildItem -Path "$asFolder\tmp" -Recurse -Force -ErrorAction SilentlyContinue |
+                    Where-Object { $_.LastWriteTime -lt $old7 } |
+                    Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+            }
         }
 
+    # 4. Kotlin Compiler Cache
+    $kotlinCache = "$env:LOCALAPPDATA\Kotlin\cache"
+    if (Test-Path $kotlinCache) {
+        Log "       Cleaning Kotlin compiler cache (30+ days)..." "DarkGray"
+        Get-ChildItem -Path $kotlinCache -Recurse -ErrorAction SilentlyContinue |
+            Where-Object { $_.LastWriteTime -lt $old30 } |
+            Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
+    # 5. Project Build Folders
+    # Still useful to clean build folders, but we keep the current logic for these
     $projectRoots = @(
         "$env:USERPROFILE\AndroidStudioProjects",
         "$env:USERPROFILE\Projects",
