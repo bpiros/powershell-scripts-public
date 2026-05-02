@@ -35,6 +35,10 @@ function Run-Step {
     param([string]$label, [scriptblock]$action)
     Log ""
     Log $label "Cyan"
+    # Promote non-terminating errors to terminating so the catch block fires.
+    # Cmdlets that explicitly pass -ErrorAction SilentlyContinue are unaffected —
+    # a per-call parameter always overrides the preference variable.
+    $ErrorActionPreference = 'Stop'
     try {
         & $action
         Log "       Done." "Green"
