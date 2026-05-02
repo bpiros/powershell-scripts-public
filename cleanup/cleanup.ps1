@@ -127,11 +127,11 @@ if (-not $NonInteractive) {
     Write-Host "  ══════════════════════════════════════════" -ForegroundColor DarkCyan
 }
 
-$runSfc      = Ask-Optional "[Optional A] Run System File Checker (sfc /scannow)?  [slow — ~10-30 min]"
-$runDism     = Ask-Optional "[Optional B] Run DISM RestoreHealth + ComponentCleanup?  [slow — ~20-60 min]"
-$runChkdsk   = Ask-Optional "[Optional C] Run CHKDSK read-only disk health scan?"
+$runSfc = Ask-Optional "[Optional A] Run System File Checker (sfc /scannow)?  [slow — ~10-30 min]"
+$runDism = Ask-Optional "[Optional B] Run DISM RestoreHealth + ComponentCleanup?  [slow — ~20-60 min]"
+$runChkdsk = Ask-Optional "[Optional C] Run CHKDSK read-only disk health scan?"
 $removeWinOld = Ask-Optional "[Optional D] Show Windows.old removal guide? (Manual steps required for safe deletion)"
-$runDocker    = Ask-Optional "[Optional E] Prune unused Docker data? (Removes stopped containers and unused networks)"
+$runDocker = Ask-Optional "[Optional E] Prune unused Docker data? (Removes stopped containers and unused networks)"
 
 Write-Host ""
 Write-Host "  Choices recorded. Starting cleanup now..." -ForegroundColor Green
@@ -151,8 +151,8 @@ Run-Step "[Pre] Creating System Restore Point..." {
 
     # --- Check how recent the last restore point is ---
     $lastRP = Get-CimInstance -Namespace "root\default" -ClassName SystemRestore |
-        Sort-Object CreationTime -Descending |
-        Select-Object -First 1
+    Sort-Object CreationTime -Descending |
+    Select-Object -First 1
 
     if ($lastRP) {
         $hoursSinceLast = [math]::Round(((Get-Date) - $lastRP.CreationTime).TotalHours, 1)
@@ -162,7 +162,7 @@ Run-Step "[Pre] Creating System Restore Point..." {
     # --- Temporarily disable the 24-hour frequency throttle ---
     # Windows ignores Checkpoint-Computer if a restore point exists within the last 24 h.
     # Setting SystemRestorePointCreationFrequency=0 bypasses this limit for this call only.
-    $rpFreqKey  = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore"
+    $rpFreqKey = "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\SystemRestore"
     $rpFreqName = "SystemRestorePointCreationFrequency"
     $originalFreq = (Get-ItemProperty -Path $rpFreqKey -Name $rpFreqName -ErrorAction SilentlyContinue).$rpFreqName
 
@@ -186,8 +186,8 @@ Run-Step "[Pre] Creating System Restore Point..." {
 
         # Verify the point was actually created
         $newRP = Get-CimInstance -Namespace "root\default" -ClassName SystemRestore |
-            Sort-Object CreationTime -Descending |
-            Select-Object -First 1
+        Sort-Object CreationTime -Descending |
+        Select-Object -First 1
         if ($newRP -and $newRP.Description -eq $restorePointDesc) {
             Log "       Restore point created: $restorePointDesc" "Green"
         }
@@ -388,6 +388,18 @@ Run-Step "[2/12] Configuring and running Disk Cleanup (cleanmgr)..." {
 # try/finally guarantees all three services restart even if deletion fails.
 # ─────────────────────────────────────────────
 Run-Step "[3/12] Clearing Windows Update download cache..." {
+    try {
+        $updateSession = New-Object -ComObject Microsoft.Update.Session
+        $installer = $updateSession.CreateUpdateInstaller()
+        if ($installer.IsBusy) {
+            Log "       [SKIP] Windows Update is actively installing updates. Skipping cache clearance to avoid interrupting." "Yellow"
+            return
+        }
+    }
+    catch {
+        Log "       [WARN] Could not query Windows Update Agent API. Proceeding with caution." "Yellow"
+    }
+
     Log "       Stopping Windows Update, BITS, and Delivery Optimization services..." "DarkGray"
     if (-not $DryRun) { Stop-Service -Name wuauserv, BITS, DoSvc -Force -ErrorAction SilentlyContinue }
     try {
