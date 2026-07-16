@@ -142,12 +142,13 @@ $runDism = Ask-Optional "[Optional B] Run DISM RestoreHealth + ComponentCleanup?
 $runChkdsk = Ask-Optional "[Optional C] Run CHKDSK read-only disk health scan?"
 $removeWinOld = Ask-Optional "[Optional D] Show Windows.old removal guide? (Manual steps required for safe deletion)"
 $runDocker = Ask-Optional "[Optional E] Prune unused Docker data? (Removes stopped containers and unused networks)"
+$runBrowsers = Ask-Optional "[Optional F] Clear browser caches (Google Chrome, Microsoft Edge, Brave, Mozilla Firefox)?"
 
 Write-Host ""
 Write-Host "  Choices recorded. Starting cleanup now..." -ForegroundColor Green
 Write-Host "  ══════════════════════════════════════════" -ForegroundColor DarkCyan
 
-Log "  Optional choices: SFC=$runSfc, DISM=$runDism, CHKDSK=$runChkdsk, Windows.old=$removeWinOld, Docker=$runDocker" "DarkGray"
+Log "  Optional choices: SFC=$runSfc, DISM=$runDism, CHKDSK=$runChkdsk, Windows.old=$removeWinOld, Docker=$runDocker, Browsers=$runBrowsers" "DarkGray"
 
 $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
 
@@ -223,7 +224,7 @@ Run-Step "[Pre] Creating System Restore Point..." {
 # ─────────────────────────────────────────────
 # STEP 1: Clear Temp folders (files older than 7 days) + empty folders
 # ─────────────────────────────────────────────
-Run-Step "[1/12] Clearing Temp folders (files older than 7 days) and empty folders..." {
+Run-Step "[1/11] Clearing Temp folders (files older than 7 days) and empty folders..." {
 
     $totalFiles = 0
     $totalFolders = 0
@@ -358,7 +359,7 @@ Run-Step "[1/12] Clearing Temp folders (files older than 7 days) and empty folde
 # the /sagerun flag skips the drive-selection GUI.
 # cleanmgr is not present on Windows Server; the step is skipped.
 # ─────────────────────────────────────────────
-Run-Step "[2/12] Configuring and running Disk Cleanup (cleanmgr)..." {
+Run-Step "[2/11] Configuring and running Disk Cleanup (cleanmgr)..." {
     $cleanmgrPath = "$env:SystemRoot\System32\cleanmgr.exe"
     if (-not (Test-Path $cleanmgrPath)) {
         Log "       [SKIP] cleanmgr.exe not found (not available on this edition)." "DarkGray"
@@ -432,7 +433,7 @@ Run-Step "[2/12] Configuring and running Disk Cleanup (cleanmgr)..." {
 # BITS and DoSvc are also stopped to prevent file-locking conflicts.
 # try/finally guarantees all three services restart even if deletion fails.
 # ─────────────────────────────────────────────
-Run-Step "[3/12] Clearing Windows Update download cache..." {
+Run-Step "[3/11] Clearing Windows Update download cache..." {
     try {
         $updateSession = New-Object -ComObject Microsoft.Update.Session
         $installer = $updateSession.CreateUpdateInstaller()
@@ -463,7 +464,7 @@ Run-Step "[3/12] Clearing Windows Update download cache..." {
 # ─────────────────────────────────────────────
 # STEP 4: Clear winget download cache
 # ─────────────────────────────────────────────
-Run-Step "[4/12] Clearing winget download cache..." {
+Run-Step "[4/11] Clearing winget download cache..." {
     if (-not $DryRun) {
         Remove-Item "$env:LOCALAPPDATA\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\LocalCache\Roaming\Microsoft\WinGet\Packages\*" -Recurse -Force -ErrorAction SilentlyContinue
     }
@@ -475,7 +476,7 @@ Run-Step "[4/12] Clearing winget download cache..." {
 # ─────────────────────────────────────────────
 # STEP 5: Clear Scoop cache
 # ─────────────────────────────────────────────
-Run-Step "[5/12] Clearing Scoop cache..." {
+Run-Step "[5/11] Clearing Scoop cache..." {
     if (Get-Command scoop -ErrorAction SilentlyContinue) {
         if (-not $DryRun) { scoop cache rm * }
         else { Log "       [DRY RUN] Would run: scoop cache rm *" "Yellow" }
@@ -489,7 +490,7 @@ Run-Step "[5/12] Clearing Scoop cache..." {
 # ─────────────────────────────────────────────
 # STEP 6: Clear developer tool caches (pip, npm, NuGet, Docker)
 # ─────────────────────────────────────────────
-Run-Step "[6/12] Clearing developer tool caches..." {
+Run-Step "[6/11] Clearing developer tool caches..." {
     if (Get-Command pip -ErrorAction SilentlyContinue) {
         Log "       [pip] found — clearing cache..." "DarkGray"
         if (-not $DryRun) { pip cache purge }
@@ -526,7 +527,7 @@ Run-Step "[6/12] Clearing developer tool caches..." {
 # Only a targeted list is cleared — full log history is preserved for
 # troubleshooting crashes, security audits, and update failures.
 # ─────────────────────────────────────────────
-Run-Step "[7/12] Clearing selected low-value Windows Event Logs..." {
+Run-Step "[7/11] Clearing selected low-value Windows Event Logs..." {
     $logsToClear = @(
         "Microsoft-Windows-Diagnostics-Performance/Operational",
         "Microsoft-Windows-ResourceExhaustion-Detector/Operational",
@@ -549,7 +550,7 @@ Run-Step "[7/12] Clearing selected low-value Windows Event Logs..." {
 # ─────────────────────────────────────────────
 # STEP 8: Clear DNS Cache
 # ─────────────────────────────────────────────
-Run-Step "[8/12] Flushing DNS cache..." {
+Run-Step "[8/11] Flushing DNS cache..." {
     if (-not $DryRun) { Clear-DnsClientCache }
     else { Log "       [DRY RUN] Would flush DNS cache." "Yellow" }
 }
@@ -561,7 +562,7 @@ Run-Step "[8/12] Flushing DNS cache..." {
 # wsreset.exe spawns a child process and returns immediately, so -Wait
 # only catches the launcher exit. A Sleep buffer is used instead.
 # ─────────────────────────────────────────────
-Run-Step "[9/12] Clearing Windows Store cache (wsreset)..." {
+Run-Step "[9/11] Clearing Windows Store cache (wsreset)..." {
     if (-not $DryRun) {
         Start-Process wsreset.exe -ArgumentList "-i" -NoNewWindow
     }
@@ -576,7 +577,7 @@ Run-Step "[9/12] Clearing Windows Store cache (wsreset)..." {
 # STEP 10: Flush thumbnail and font caches
 # Uses ie4uinit.exe to refresh icon/thumb caches without killing Explorer.
 # ─────────────────────────────────────────────
-Run-Step "[10/12] Flushing thumbnail and font caches..." {
+Run-Step "[10/11] Flushing thumbnail and font caches..." {
     # Thumbnail/Icon cache (non-destructive refresh)
     Log "       Refreshing icon and thumbnail cache..." "DarkGray"
     if (Test-Path "$env:WinDir\System32\ie4uinit.exe") {
@@ -596,78 +597,13 @@ Run-Step "[10/12] Flushing thumbnail and font caches..." {
     }
 }
 
-# ─────────────────────────────────────────────
-# STEP 11: Clear browser caches
-# Skips any browser that is currently running to avoid session corruption.
-# ─────────────────────────────────────────────
-Run-Step "[11/12] Clearing browser caches..." {
-    $browsers = @{
-        "Google Chrome"   = @(
-            "$env:LOCALAPPDATA\Google\Chrome\User Data\*\Cache\*",
-            "$env:LOCALAPPDATA\Google\Chrome\User Data\*\Code Cache\*",
-            "$env:LOCALAPPDATA\Google\Chrome\User Data\*\DawnCache\*",
-            "$env:LOCALAPPDATA\Google\Chrome\User Data\*\GPUCache\*"
-        )
-        "Microsoft Edge"  = @(
-            "$env:LOCALAPPDATA\Microsoft\Edge\User Data\*\Cache\*",
-            "$env:LOCALAPPDATA\Microsoft\Edge\User Data\*\Code Cache\*",
-            "$env:LOCALAPPDATA\Microsoft\Edge\User Data\*\DawnCache\*",
-            "$env:LOCALAPPDATA\Microsoft\Edge\User Data\*\GPUCache\*"
-        )
-        "Brave"           = @(
-            "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\User Data\*\Cache\*",
-            "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\User Data\*\Code Cache\*",
-            "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\User Data\*\DawnCache\*",
-            "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\User Data\*\GPUCache\*"
-        )
-        "Mozilla Firefox" = @(
-            "$env:LOCALAPPDATA\Mozilla\Firefox\Profiles\*\cache2\entries\*",
-            "$env:LOCALAPPDATA\Mozilla\Firefox\Profiles\*\cache2\doomed\*"
-        )
-    }
-    $browserProcessNames = @{
-        "Google Chrome"   = "chrome"
-        "Microsoft Edge"  = "msedge"
-        "Brave"           = "brave"
-        "Mozilla Firefox" = "firefox"
-    }
-    foreach ($browser in $browsers.Keys) {
-        $processName = $browserProcessNames[$browser]
-        
-        if (Get-Process -Name $processName -ErrorAction SilentlyContinue) {
-            Log "       [$browser] is currently running — skipping to avoid session corruption." "Yellow"
-            continue
-        }
-
-        # Check if any cache paths actually exist before logging "found"
-        $cacheExists = $false
-        foreach ($cachePath in $browsers[$browser]) {
-            if (Test-Path $cachePath) {
-                $cacheExists = $true
-                break
-            }
-        }
-
-        if ($cacheExists) {
-            Log "       [$browser] found — clearing cache..." "DarkGray"
-            foreach ($cachePath in $browsers[$browser]) {
-                if (-not $DryRun) { Remove-Item -Path $cachePath -Recurse -Force -ErrorAction SilentlyContinue }
-            }
-            if ($DryRun) { Log "       [DRY RUN] Would clear [$browser] cache." "Yellow" }
-            else { Log "       [$browser] cache cleared." "DarkGray" }
-        }
-        else {
-            Log "       [$browser] not found — skipping." "DarkGray"
-        }
-    }
-}
 
 # ─────────────────────────────────────────────
-# STEP 12: Surgical Android Studio and Gradle Cleanup
+# STEP 11: Surgical Android Studio and Gradle Cleanup
 # Removes outdated logs and caches (older than 7-30 days)
 # while keeping active dependencies and recent distributions.
 # ─────────────────────────────────────────────
-Run-Step "[12/12] Surgical Android Studio and Gradle Cleanup..." {
+Run-Step "[11/11] Surgical Android Studio and Gradle Cleanup..." {
     # 1. Check if Android Studio is running
     if (Get-Process -Name "studio64", "studio" -ErrorAction SilentlyContinue) {
         Log "       [Android Studio] is currently running — skipping to avoid workspace corruption." "Yellow"
@@ -852,6 +788,78 @@ if ($runDocker) {
 else {
     Log ""
     Log "[Optional E] Docker cleanup — skipped by user." "DarkGray"
+}
+
+# ─────────────────────────────────────────────
+# Optional F: Clear browser caches
+# Skips any browser that is currently running to avoid session corruption.
+# ─────────────────────────────────────────────
+if ($runBrowsers) {
+    Run-Step "[Optional F] Clearing browser caches..." {
+        $browsers = @{
+            "Google Chrome"   = @(
+                "$env:LOCALAPPDATA\Google\Chrome\User Data\*\Cache\*",
+                "$env:LOCALAPPDATA\Google\Chrome\User Data\*\Code Cache\*",
+                "$env:LOCALAPPDATA\Google\Chrome\User Data\*\DawnCache\*",
+                "$env:LOCALAPPDATA\Google\Chrome\User Data\*\GPUCache\*"
+            )
+            "Microsoft Edge"  = @(
+                "$env:LOCALAPPDATA\Microsoft\Edge\User Data\*\Cache\*",
+                "$env:LOCALAPPDATA\Microsoft\Edge\User Data\*\Code Cache\*",
+                "$env:LOCALAPPDATA\Microsoft\Edge\User Data\*\DawnCache\*",
+                "$env:LOCALAPPDATA\Microsoft\Edge\User Data\*\GPUCache\*"
+            )
+            "Brave"           = @(
+                "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\User Data\*\Cache\*",
+                "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\User Data\*\Code Cache\*",
+                "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\User Data\*\DawnCache\*",
+                "$env:LOCALAPPDATA\BraveSoftware\Brave-Browser\User Data\*\GPUCache\*"
+            )
+            "Mozilla Firefox" = @(
+                "$env:LOCALAPPDATA\Mozilla\Firefox\Profiles\*\cache2\entries\*",
+                "$env:LOCALAPPDATA\Mozilla\Firefox\Profiles\*\cache2\doomed\*"
+            )
+        }
+        $browserProcessNames = @{
+            "Google Chrome"   = "chrome"
+            "Microsoft Edge"  = "msedge"
+            "Brave"           = "brave"
+            "Mozilla Firefox" = "firefox"
+        }
+        foreach ($browser in $browsers.Keys) {
+            $processName = $browserProcessNames[$browser]
+            
+            if (Get-Process -Name $processName -ErrorAction SilentlyContinue) {
+                Log "       [$browser] is currently running — skipping to avoid session corruption." "Yellow"
+                continue
+            }
+
+            # Check if any cache paths actually exist before logging "found"
+            $cacheExists = $false
+            foreach ($cachePath in $browsers[$browser]) {
+                if (Test-Path $cachePath) {
+                    $cacheExists = $true
+                    break
+                }
+            }
+
+            if ($cacheExists) {
+                Log "       [$browser] found — clearing cache..." "DarkGray"
+                foreach ($cachePath in $browsers[$browser]) {
+                    if (-not $DryRun) { Remove-Item -Path $cachePath -Recurse -Force -ErrorAction SilentlyContinue }
+                }
+                if ($DryRun) { Log "       [DRY RUN] Would clear [$browser] cache." "Yellow" }
+                else { Log "       [$browser] cache cleared." "DarkGray" }
+            }
+            else {
+                Log "       [$browser] not found — skipping." "DarkGray"
+            }
+        }
+    }
+}
+else {
+    Log ""
+    Log "[Optional F] Browser cache cleanup — skipped by user." "DarkGray"
 }
 
 # ─────────────────────────────────────────────
